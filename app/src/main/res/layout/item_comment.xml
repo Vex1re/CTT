@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:padding="8dp">
+
+    <com.google.android.material.imageview.ShapeableImageView
+        android:id="@+id/comment_avatar"
+        android:layout_width="32dp"
+        android:layout_height="32dp"
+        android:scaleType="centerCrop"
+        app:shapeAppearanceOverlay="@style/CircleImageView"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        tools:src="@tools:sample/avatars"/>
+
+    <TextView
+        android:id="@+id/comment_author"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="8dp"
+        android:textStyle="bold"
+        app:layout_constraintStart_toEndOf="@id/comment_avatar"
+        app:layout_constraintTop_toTopOf="@id/comment_avatar"
+        tools:text="Мария Иванова"/>
+
+    <TextView
+        android:id="@+id/comment_time"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textSize="12sp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        tools:text="1 час назад"/>
+
+    <TextView
+        android:id="@+id/comment_text"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        app:layout_constraintStart_toStartOf="@id/comment_author"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/comment_author"
+        tools:text="Отличное место! Обязательно посещу его в следующий раз, когда буду в Москве."/>
+
+
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:layout_marginTop="4dp"
+        app:layout_constraintStart_toStartOf="@id/comment_text"
+        app:layout_constraintTop_toBottomOf="@id/comment_text">
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/comment_upvote"
+            style="@style/Widget.MaterialComponents.Button.TextButton.Icon"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:minWidth="0dp"
+            android:paddingStart="0dp"
+            android:paddingEnd="0dp"
+            app:icon="@android:drawable/arrow_up_float"
+            app:iconSize="16dp"/>
+
+        <TextView
+            android:id="@+id/comment_rating"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginHorizontal="4dp"
+            android:layout_gravity="center_vertical"
+            android:textSize="12sp"
+            tools:text="15"/>
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/comment_downvote"
+            style="@style/Widget.MaterialComponents.Button.TextButton.Icon"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:minWidth="0dp"
+            android:paddingStart="0dp"
+            android:paddingEnd="0dp"
+            app:icon="@android:drawable/arrow_down_float"
+            app:iconSize="16dp"/>
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/comment_reply"
+            style="@style/Widget.MaterialComponents.Button.TextButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:minWidth="0dp"
+            android:minHeight="0dp"
+            android:paddingHorizontal="8dp"
+            android:paddingVertical="2dp"
+            android:text="Ответить"
+            android:textSize="12sp"/>
+    </LinearLayout>
+
+</androidx.constraintlayout.widget.ConstraintLayout> 
