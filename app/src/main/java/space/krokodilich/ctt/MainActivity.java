@@ -13,6 +13,7 @@ import androidx.fragment.app.FragmentManager;
 import androidx.fragment.app.FragmentTransaction;
 
 public class MainActivity extends AppCompatActivity {
+    private ConnectURL connectURL;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
