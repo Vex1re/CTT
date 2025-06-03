@@ -13,20 +13,24 @@ import androidx.fragment.app.FragmentManager;
 import androidx.fragment.app.FragmentTransaction;
 
 public class MainActivity extends AppCompatActivity {
-    private ConnectURL connectURL;
+
+    public int s = 0;
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        BottomNavigationView bottomNavigationView = findViewById(R.id.nav_view);
-        bottomNavigationView.setOnNavigationItemSelectedListener(navListener);
+        if (savedInstanceState == null & s == 1) {
 
-        if (savedInstanceState == null) {
+            BottomNavigationView bottomNavigationView = findViewById(R.id.nav_view);
+            bottomNavigationView.setOnNavigationItemSelectedListener(navListener);
             getSupportFragmentManager().beginTransaction()
                     .replace(R.id.fragment_container, new HomeFragment())
                     .commit();
+        } else{
+            setContentView(R.layout.fragment_register);
         }
     }
 

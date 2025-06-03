@@ -1,0 +1,30 @@
+{
+  "project_info": {
+    "project_number": "317491743840",
+    "firebase_url": "https://ctts-2703e-default-rtdb.firebaseio.com",
+    "project_id": "ctts-2703e",
+    "storage_bucket": "ctts-2703e.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:317491743840:android:486779825b718442bdc705",
+        "android_client_info": {
+          "package_name": "space.krokodilich.ctt"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBDMwRPTJO0jZIg5hIG5HMi2O70vPiZ_4g"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
