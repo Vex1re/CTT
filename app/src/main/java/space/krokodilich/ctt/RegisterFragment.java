@@ -1,137 +1,91 @@
 package space.krokodilich.ctt;
 
-import androidx.fragment.app.Fragment;
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.Button;
-import android.widget.CheckBox;
-import android.widget.EditText;
 import android.widget.Toast;
-import android.util.Log;
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.fragment.app.Fragment;
+import com.google.android.material.button.MaterialButton;
+import com.google.android.material.checkbox.MaterialCheckBox;
+import com.google.android.material.textfield.TextInputEditText;
 
-import androidx.appcompat.app.AppCompatActivity;
+public class RegisterFragment extends Fragment {
+    private TextInputEditText loginInput;
+    private TextInputEditText nameInput;
+    private TextInputEditText surnameInput;
+    private TextInputEditText emailInput;
+    private TextInputEditText cityInput;
+    private TextInputEditText passwordInput;
+    private TextInputEditText confirmPasswordInput;
+    private MaterialCheckBox termsCheckbox;
+    private MaterialCheckBox privacyCheckbox;
+    private MaterialButton registerButton;
 
-import com.google.firebase.database.DatabaseReference;
-import com.google.firebase.database.FirebaseDatabase;
-
-public class RegisterFragment extends Fragment implements ViewModel.OnNetworkCallback {
-    private static final String TAG = "RegisterFragment";
-    private EditText edName, edSurName, edEmail, edCity, edPassword, edConfPassword, edLogin;
-    private Button register;
-    private ViewModel viewModel;
-    private CheckBox termsCheckbox;
-    private CheckBox privacyCheckbox;
-
+    @Nullable
     @Override
-    public void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        if (getActivity() instanceof MainActivity) {
-            viewModel = ((MainActivity) getActivity()).getViewModel();
-            viewModel.setCallback(this);
-        } else {
-            Log.e(TAG, "Activity is not MainActivity");
-        }
+    public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
+        return inflater.inflate(R.layout.fragment_register, container, false);
     }
 
     @Override
-    public View onCreateView(LayoutInflater inflater, ViewGroup container,
-                           Bundle savedInstanceState) {
-        View view = inflater.inflate(R.layout.fragment_register, container, false);
+    public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
+        super.onViewCreated(view, savedInstanceState);
 
         initializeViews(view);
-        setupListeners();
-        
-        return view;
+        setupRegisterButton();
     }
 
     private void initializeViews(View view) {
-        edName = view.findViewById(R.id.register_name);
-        edSurName = view.findViewById(R.id.register_surname);
-        edEmail = view.findViewById(R.id.register_email);
-        edCity = view.findViewById(R.id.register_city);
-        edPassword = view.findViewById(R.id.register_password);
-        edConfPassword = view.findViewById(R.id.register_confirm_password);
-        edLogin = view.findViewById(R.id.register_login);
-        register = view.findViewById(R.id.register_button);
+        loginInput = view.findViewById(R.id.register_login);
+        nameInput = view.findViewById(R.id.register_name);
+        surnameInput = view.findViewById(R.id.register_surname);
+        emailInput = view.findViewById(R.id.register_email);
+        cityInput = view.findViewById(R.id.register_city);
+        passwordInput = view.findViewById(R.id.register_password);
+        confirmPasswordInput = view.findViewById(R.id.register_confirm_password);
         termsCheckbox = view.findViewById(R.id.terms_checkbox);
         privacyCheckbox = view.findViewById(R.id.privacy_checkbox);
+        registerButton = view.findViewById(R.id.register_button);
     }
 
-    private void setupListeners() {
-        register.setOnClickListener(this::register);
-    }
+    private void setupRegisterButton() {
+        registerButton.setOnClickListener(v -> {
+            if (!validateInputs()) {
+                return;
+            }
 
-    private void register(View view) {
-        if (!validateInputs()) {
-            return;
-        }
-
-        String name = edName.getText().toString();
-        String surname = edSurName.getText().toString();
-        String city = edCity.getText().toString();
-        String email = edEmail.getText().toString();
-        String password = edPassword.getText().toString();
-        String login = edLogin.getText().toString();
-
-        User newUser = new User("1", name, surname, email, city, password, login);
-        Log.d(TAG, "Attempting to register user: " + newUser.toString());
-        viewModel.register(newUser);
+            // Временно отключаем проверку сервера
+            if (getActivity() instanceof MainActivity) {
+                ((MainActivity) getActivity()).showMainContent();
+            }
+        });
     }
 
     private boolean validateInputs() {
-        if (edName.getText().toString().isEmpty() ||
-            edSurName.getText().toString().isEmpty() ||
-            edEmail.getText().toString().isEmpty() ||
-            edCity.getText().toString().isEmpty() ||
-            edPassword.getText().toString().isEmpty() ||
-            edLogin.getText().toString().isEmpty()) {
+        if (loginInput.getText().toString().isEmpty() ||
+            nameInput.getText().toString().isEmpty() ||
+            surnameInput.getText().toString().isEmpty() ||
+            emailInput.getText().toString().isEmpty() ||
+            cityInput.getText().toString().isEmpty() ||
+            passwordInput.getText().toString().isEmpty() ||
+            confirmPasswordInput.getText().toString().isEmpty()) {
             Toast.makeText(getContext(), "Пожалуйста, заполните все поля", Toast.LENGTH_SHORT).show();
             return false;
         }
 
-        if (!edPassword.getText().toString().equals(edConfPassword.getText().toString())) {
+        if (!passwordInput.getText().toString().equals(confirmPasswordInput.getText().toString())) {
             Toast.makeText(getContext(), "Пароли не совпадают", Toast.LENGTH_SHORT).show();
             return false;
         }
 
-        if (!termsCheckbox.isChecked()) {
-            Toast.makeText(getContext(), "Пожалуйста, примите условия использования", Toast.LENGTH_SHORT).show();
-            return false;
-        }
-
-        if (!privacyCheckbox.isChecked()) {
-            Toast.makeText(getContext(), "Пожалуйста, примите политику конфиденциальности", Toast.LENGTH_SHORT).show();
+        if (!termsCheckbox.isChecked() || !privacyCheckbox.isChecked()) {
+            Toast.makeText(getContext(), "Необходимо принять условия использования", Toast.LENGTH_SHORT).show();
             return false;
         }
 
         return true;
-    }
-
-    @Override
-    public void onSuccess() {
-        if (getActivity() != null) {
-            getActivity().runOnUiThread(() -> {
-                Toast.makeText(getContext(), "Регистрация успешна", Toast.LENGTH_SHORT).show();
-                // Показываем BottomNavigationView и переходим на главный экран
-                if (getActivity() instanceof MainActivity) {
-                    MainActivity mainActivity = (MainActivity) getActivity();
-                    mainActivity.showBottomNavigation();
-                    getActivity().getSupportFragmentManager().beginTransaction()
-                            .replace(R.id.fragment_container, new HomeFragment())
-                            .commit();
-                }
-            });
-        }
-    }
-
-    @Override
-    public void onError(String error) {
-        if (getActivity() != null) {
-            getActivity().runOnUiThread(() -> {
-                Toast.makeText(getContext(), error, Toast.LENGTH_SHORT).show();
-            });
-        }
     }
 }

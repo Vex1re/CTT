@@ -1,5 +1,6 @@
 package space.krokodilich.ctt;
 
+import android.content.Context;
 import android.util.Log;
 import retrofit2.Call;
 import retrofit2.Callback;
@@ -10,14 +11,21 @@ public class ViewModel {
     private static final String TAG = "ViewModel";
     private ChatService chatService;
     private OnNetworkCallback callback;
+    private Context context;
 
-    public interface OnNetworkCallback {
-        void onSuccess();
-        void onError(String error);
+    public void initialize(Context context) {
+        this.context = context;
+        chatService = RetrofitClient.getClient().create(ChatService.class);
+        Log.d(TAG, "ViewModel initialized");
     }
 
     public void setCallback(OnNetworkCallback callback) {
         this.callback = callback;
+    }
+
+    public interface OnNetworkCallback {
+        void onSuccess();
+        void onError(String error);
     }
 
     public void connect() {
@@ -41,15 +49,15 @@ public class ViewModel {
         if (chatService == null) {
             Log.e(TAG, "ChatService is null");
             if (callback != null) {
-                callback.onError("Сервис не инициализирован");
+                callback.onError("Ошибка инициализации сервиса");
             }
             return;
         }
 
         Log.d(TAG, "Attempting to register user: " + user.toString());
-        chatService.register(user).enqueue(new Callback<Void>() {
+        chatService.register(user).enqueue(new Callback<User>() {
             @Override
-            public void onResponse(Call<Void> call, Response<Void> response) {
+            public void onResponse(Call<User> call, Response<User> response) {
                 Log.d(TAG, "Registration response received. Code: " + response.code());
                 if (response.isSuccessful()) {
                     Log.d(TAG, "Registration successful");
@@ -73,7 +81,7 @@ public class ViewModel {
             }
 
             @Override
-            public void onFailure(Call<Void> call, Throwable t) {
+            public void onFailure(Call<User> call, Throwable t) {
                 Log.e(TAG, "Network error during registration", t);
                 if (callback != null) {
                     callback.onError("Ошибка сети: " + t.getMessage());

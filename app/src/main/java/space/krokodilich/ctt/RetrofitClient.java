@@ -17,15 +17,11 @@ public class RetrofitClient {
         if (retrofit == null) {
             Log.d(TAG, "Initializing Retrofit client with base URL: " + BASE_URL);
             
-            // Создаем интерцептор для логирования
-            HttpLoggingInterceptor loggingInterceptor = new HttpLoggingInterceptor(message -> {
-                Log.d(TAG, "OkHttp: " + message);
-            });
-            loggingInterceptor.setLevel(HttpLoggingInterceptor.Level.BODY);
+            HttpLoggingInterceptor logging = new HttpLoggingInterceptor();
+            logging.setLevel(HttpLoggingInterceptor.Level.BODY);
 
-            // Настраиваем OkHttpClient с таймаутами и логированием
             OkHttpClient client = new OkHttpClient.Builder()
-                    .addInterceptor(loggingInterceptor)
+                    .addInterceptor(logging)
                     .connectTimeout(30, TimeUnit.SECONDS)
                     .readTimeout(30, TimeUnit.SECONDS)
                     .writeTimeout(30, TimeUnit.SECONDS)

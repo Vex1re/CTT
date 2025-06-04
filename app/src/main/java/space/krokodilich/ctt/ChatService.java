@@ -9,8 +9,11 @@ import retrofit2.http.Path;
 import java.util.List;
 
 public interface ChatService {
-    @POST("/api/user/register")
-    Call<Void> register(@Body User user);
+    @POST("api/auth/register")
+    Call<User> register(@Body User user);
+
+    @POST("api/auth/login")
+    Call<User> login(@Body User user);
 
     @GET("/api/user/{id}")
     Call<User> getUser(@Path("id") String userId);
