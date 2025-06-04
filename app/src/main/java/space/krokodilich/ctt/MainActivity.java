@@ -2,6 +2,9 @@ package space.krokodilich.ctt;
 
 import android.os.Bundle;
 import android.view.MenuItem;
+import android.widget.Toast;
+import android.view.View;
+import android.util.Log;
 
 import com.google.android.material.bottomnavigation.BottomNavigationView;
 
@@ -14,23 +17,48 @@ import androidx.fragment.app.FragmentTransaction;
 
 public class MainActivity extends AppCompatActivity {
 
-    public int s = 0;
-
+    private ViewModel viewModel;
+    private static final String TAG = "MainActivity";
+    private BottomNavigationView bottomNavigationView;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+        
+        viewModel = new ViewModel();
+        viewModel.connect();
+        Log.d(TAG, "ViewModel initialized and connected");
 
-        if (savedInstanceState == null & s == 1) {
-
-            BottomNavigationView bottomNavigationView = findViewById(R.id.nav_view);
-            bottomNavigationView.setOnNavigationItemSelectedListener(navListener);
+        bottomNavigationView = findViewById(R.id.nav_view);
+        setupBottomNavigation();
+        
+        if (savedInstanceState == null) {
+            // Показываем регистрацию при первом запуске
+            hideBottomNavigation();
             getSupportFragmentManager().beginTransaction()
-                    .replace(R.id.fragment_container, new HomeFragment())
+                    .replace(R.id.fragment_container, new RegisterFragment())
                     .commit();
-        } else{
-            setContentView(R.layout.fragment_register);
+        }
+    }
+
+    public ViewModel getViewModel() {
+        return viewModel;
+    }
+
+    private void setupBottomNavigation() {
+        bottomNavigationView.setOnNavigationItemSelectedListener(navListener);
+    }
+
+    public void showBottomNavigation() {
+        if (bottomNavigationView != null) {
+            bottomNavigationView.setVisibility(View.VISIBLE);
+        }
+    }
+
+    public void hideBottomNavigation() {
+        if (bottomNavigationView != null) {
+            bottomNavigationView.setVisibility(View.GONE);
         }
     }
 
@@ -43,6 +71,7 @@ public class MainActivity extends AppCompatActivity {
                     if (selectedFragment != null) {
                         getSupportFragmentManager().beginTransaction()
                                 .replace(R.id.fragment_container, selectedFragment)
+                                .addToBackStack(null)
                                 .commit();
                         return true;
                     }
