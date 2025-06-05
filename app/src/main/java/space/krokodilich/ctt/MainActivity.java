@@ -12,22 +12,47 @@ import com.google.android.material.bottomnavigation.BottomNavigationView;
 
 public class MainActivity extends AppCompatActivity {
     private BottomNavigationView bottomNavigationView;
-    private ViewModel viewModel;
+    private space.krokodilich.ctt.ViewModel viewModel;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        viewModel = new ViewModel();
+        viewModel = new space.krokodilich.ctt.ViewModel();
         viewModel.initialize(this);
 
         bottomNavigationView = findViewById(R.id.bottom_navigation);
-        bottomNavigationView.setVisibility(View.GONE);
+        // bottomNavigationView.setVisibility(View.GONE); // Изначально скрываем панель, пока не решим, показывать главную страницу или нет
         setupBottomNavigation();
 
-        if (savedInstanceState == null) {
-            loadFragment(new AuthFragment());
+        // Проверяем, есть ли сохраненный ID пользователя
+        Long savedUserId = viewModel.getSavedUserId();
+
+        if (savedUserId != null) {
+            // Если ID найден, пытаемся загрузить пользователя
+            viewModel.setCallback(new ViewModel.OnNetworkCallback() {
+                @Override
+                public void onSuccess() {
+                    // Если пользователь успешно загружен, показываем основное содержимое
+                    showMainContent();
+                    // Убираем callback после успешной загрузки, чтобы он не перехватывал другие события
+                    viewModel.setCallback(null);
+                }
+
+                @Override
+                public void onError(String error) {
+                    // Если загрузка пользователя не удалась (например, ID недействителен), очищаем сохраненный ID и показываем экран аутентификации
+                    viewModel.clearUserId();
+                    showAuthFragmentAndHideBottomNav();
+                    // Убираем callback
+                    viewModel.setCallback(null);
+                }
+            });
+            viewModel.fetchUserById(savedUserId);
+        } else {
+            // Если ID не найден, показываем экран аутентификации
+            showAuthFragmentAndHideBottomNav();
         }
     }
 
@@ -64,7 +89,19 @@ public class MainActivity extends AppCompatActivity {
         loadFragment(new HomeFragment());
     }
 
-    public ViewModel getViewModel() {
+    public space.krokodilich.ctt.ViewModel getViewModel() {
         return viewModel;
+    }
+
+    public void showLoginFragment() {
+        getSupportFragmentManager().beginTransaction()
+            .replace(R.id.fragment_container, new LoginFragment())
+            .addToBackStack(null)
+            .commit();
+    }
+
+    public void showAuthFragmentAndHideBottomNav() {
+        bottomNavigationView.setVisibility(View.GONE);
+        loadFragment(new AuthFragment());
     }
 }

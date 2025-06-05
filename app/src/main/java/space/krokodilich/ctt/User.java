@@ -6,18 +6,30 @@ public class User {
     @SerializedName("id")
     private Long id;
     
-    @SerializedName("username")
+    @SerializedName("login")
     private String username;
+    
+    @SerializedName("name")
+    private String name;
+    
+    @SerializedName("surname")
+    private String surname;
     
     @SerializedName("email")
     private String email;
     
+    @SerializedName("city")
+    private String city;
+    
     @SerializedName("password")
     private String password;
 
-    public User(String username, String email, String password) {
+    public User(String username, String name, String surname, String email, String city, String password) {
         this.username = username;
+        this.name = name;
+        this.surname = surname;
         this.email = email;
+        this.city = city;
         this.password = password;
     }
 
@@ -37,12 +49,36 @@ public class User {
         this.username = username;
     }
 
+    public String getName() {
+        return name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    public String getSurname() {
+        return surname;
+    }
+
+    public void setSurname(String surname) {
+        this.surname = surname;
+    }
+
     public String getEmail() {
         return email;
     }
 
     public void setEmail(String email) {
         this.email = email;
+    }
+
+    public String getCity() {
+        return city;
+    }
+
+    public void setCity(String city) {
+        this.city = city;
     }
 
     public String getPassword() {
@@ -58,7 +94,10 @@ public class User {
         return "User{" +
                 "id=" + id +
                 ", username='" + username + '\'' +
+                ", name='" + name + '\'' +
+                ", surname='" + surname + '\'' +
                 ", email='" + email + '\'' +
+                ", city='" + city + '\'' +
                 '}';
     }
 
