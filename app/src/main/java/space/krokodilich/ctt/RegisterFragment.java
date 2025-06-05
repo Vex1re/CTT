@@ -21,13 +21,14 @@ import com.google.android.material.button.MaterialButton;
 import com.google.android.material.checkbox.MaterialCheckBox;
 import com.google.android.material.textfield.TextInputEditText;
 import com.google.android.material.textfield.MaterialAutoCompleteTextView;
+import android.widget.AutoCompleteTextView;
 
 public class RegisterFragment extends Fragment implements ViewModel.OnNetworkCallback {
     private TextInputEditText loginInput;
     private TextInputEditText nameInput;
     private TextInputEditText surnameInput;
     private TextInputEditText emailInput;
-    private MaterialAutoCompleteTextView citySpinner;
+    private AutoCompleteTextView citySpinner;
     private TextInputEditText passwordInput;
     private TextInputEditText confirmPasswordInput;
     private MaterialCheckBox termsCheckbox;

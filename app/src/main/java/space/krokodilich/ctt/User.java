@@ -24,6 +24,15 @@ public class User {
     @SerializedName("password")
     private String password;
 
+    @SerializedName("posts")
+    private int posts;
+
+    @SerializedName("rating")
+    private int rating;
+
+    @SerializedName("status")
+    private String status;
+
     public User(String username, String name, String surname, String email, String city, String password) {
         this.username = username;
         this.name = name;
@@ -31,6 +40,9 @@ public class User {
         this.email = email;
         this.city = city;
         this.password = password;
+        this.posts = 0;
+        this.rating = 0;
+        this.status = "Новичок";
     }
 
     public Long getId() {
@@ -89,6 +101,30 @@ public class User {
         this.password = password;
     }
 
+    public int getPosts() {
+        return posts;
+    }
+
+    public void setPosts(int posts) {
+        this.posts = posts;
+    }
+
+    public int getRating() {
+        return rating;
+    }
+
+    public void setRating(int rating) {
+        this.rating = rating;
+    }
+
+    public String getStatus() {
+        return status;
+    }
+
+    public void setStatus(String status) {
+        this.status = status;
+    }
+
     @Override
     public String toString() {
         return "User{" +
@@ -98,6 +134,9 @@ public class User {
                 ", surname='" + surname + '\'' +
                 ", email='" + email + '\'' +
                 ", city='" + city + '\'' +
+                ", posts=" + posts +
+                ", rating=" + rating +
+                ", status='" + status + '\'' +
                 '}';
     }
 

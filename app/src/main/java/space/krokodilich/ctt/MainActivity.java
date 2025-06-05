@@ -104,4 +104,8 @@ public class MainActivity extends AppCompatActivity {
         bottomNavigationView.setVisibility(View.GONE);
         loadFragment(new AuthFragment());
     }
+
+    public void navigateToCreatePost() {
+        loadFragment(new CreatePostFragment());
+    }
 }

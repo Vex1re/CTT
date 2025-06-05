@@ -1,38 +1,49 @@
 package space.krokodilich.ctt;
 
-public class Post {
-    private String authorName;
-    private String authorAvatar;
-    private String location;
-    private String time;
-    private String imageUrl;
-    private String placeName;
-    private String placeTag;
-    private String description;
-    private int rating;
-    private int commentsCount;
+import com.google.gson.annotations.SerializedName;
 
-    public Post(String authorName, String authorAvatar, String location, String time,
-               String imageUrl, String placeName, String placeTag, String description,
-               int rating, int commentsCount) {
-        this.authorName = authorName;
-        this.authorAvatar = authorAvatar;
+public class Post {
+    @SerializedName("id")
+    private Long id;
+    @SerializedName("name")
+    private String name; // Author's full name
+    @SerializedName("location")
+    private String location;
+    @SerializedName("time")
+    private String time;
+    private String placeName;
+    @SerializedName("description")
+    private String description;
+    @SerializedName("rating")
+    private int rating;
+    @SerializedName("commentsCount")
+    private int commentsCount;
+    @SerializedName("tag")
+    private String tag;
+    @SerializedName("login")
+    private String login; // User's login
+
+    public Post(Long id, String name, String location, String time,
+               String description, int rating, String tag,
+               int commentsCount, String placeName, String login) {
+        this.id = id;
+        this.name = name;
         this.location = location;
         this.time = time;
-        this.imageUrl = imageUrl;
-        this.placeName = placeName;
-        this.placeTag = placeTag;
         this.description = description;
         this.rating = rating;
+        this.tag = tag;
         this.commentsCount = commentsCount;
+        this.placeName = placeName;
+        this.login = login;
+    }
+
+    public Long getId() {
+        return id;
     }
 
     public String getAuthorName() {
-        return authorName;
-    }
-
-    public String getAuthorAvatar() {
-        return authorAvatar;
+        return name;
     }
 
     public String getLocation() {
@@ -43,16 +54,12 @@ public class Post {
         return time;
     }
 
-    public String getImageUrl() {
-        return imageUrl;
-    }
-
     public String getPlaceName() {
         return placeName;
     }
 
     public String getPlaceTag() {
-        return placeTag;
+        return tag;
     }
 
     public String getDescription() {
@@ -65,5 +72,9 @@ public class Post {
 
     public int getCommentsCount() {
         return commentsCount;
+    }
+    
+    public String getLogin() {
+        return login;
     }
 }

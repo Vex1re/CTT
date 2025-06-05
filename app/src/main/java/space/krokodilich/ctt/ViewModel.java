@@ -7,6 +7,11 @@ import retrofit2.Call;
 import retrofit2.Callback;
 import retrofit2.Response;
 import java.util.List;
+import java.util.ArrayList;
+import okhttp3.OkHttpClient;
+import retrofit2.Retrofit;
+import retrofit2.converter.gson.GsonConverterFactory;
+import okhttp3.logging.HttpLoggingInterceptor;
 
 public class ViewModel {
     private static final String TAG = "ViewModel";
@@ -14,11 +19,27 @@ public class ViewModel {
     private OnNetworkCallback callback;
     private Context context;
     private User currentUser; // Поле для хранения текущего пользователя
+    private List<Post> posts;
+    private static final String BASE_URL = "https://spring-boot-production-6510.up.railway.app/";
+    private ApiService apiService;
 
     public void initialize(Context context) {
         this.context = context;
         chatService = RetrofitClient.getClient().create(ChatService.class);
+        apiService = RetrofitClient.getClient().create(ApiService.class);
         Log.d(TAG, "ViewModel initialized");
+        
+        OkHttpClient client = new OkHttpClient.Builder()
+            .addInterceptor(new HttpLoggingInterceptor().setLevel(HttpLoggingInterceptor.Level.BODY))
+            .build();
+
+        Retrofit retrofit = new Retrofit.Builder()
+            .baseUrl(BASE_URL)
+            .client(client)
+            .addConverterFactory(GsonConverterFactory.create())
+            .build();
+
+        apiService = retrofit.create(ApiService.class);
     }
 
     public void setCallback(OnNetworkCallback callback) {
@@ -211,13 +232,13 @@ public class ViewModel {
                             String userLogin = user.getUsername();
                             String userEmail = user.getEmail();
                             
-                            if (userLogin != null && userLogin.equals(loginOrEmail)) {
+                            if (loginOrEmail != null && userLogin != null && loginOrEmail.equals(userLogin)) {
                                 if (callback != null) {
                                     callback.onError("Пользователь с таким логином уже существует");
                                 }
                                 return;
                             }
-                            if (userEmail != null && userEmail.equals(email)) {
+                            if (email != null && userEmail != null && email.equals(userEmail)) {
                                 if (callback != null) {
                                     callback.onError("Пользователь с таким email уже существует");
                                 }
@@ -236,9 +257,10 @@ public class ViewModel {
                             String userEmail = user.getEmail();
                             String userPassword = user.getPassword();
                             
-                            if ((userLogin != null && userLogin.equals(loginOrEmail) || 
-                                 userEmail != null && userEmail.equals(loginOrEmail)) && 
-                                userPassword != null && userPassword.equals(email)) { // email здесь используется как password
+                            if (loginOrEmail != null && email != null && 
+                                ((userLogin != null && loginOrEmail.equals(userLogin)) || 
+                                 (userEmail != null && loginOrEmail.equals(userEmail))) && 
+                                userPassword != null && email.equals(userPassword)) {
                                 userExists = true;
                                 currentUser = user; // Сохраняем найденного пользователя
                                 saveUserId(user.getId()); // Сохраняем ID пользователя при успешном входе
@@ -366,5 +388,83 @@ public class ViewModel {
             return userId != -1L ? userId : null;
         }
         return null;
+    }
+
+    public void getPosts(OnNetworkCallback callback) {
+        this.callback = callback;
+        apiService.getPosts().enqueue(new Callback<List<Post>>() {
+            @Override
+            public void onResponse(Call<List<Post>> call, Response<List<Post>> response) {
+                if (response.isSuccessful() && response.body() != null) {
+                    posts = response.body();
+                    if (callback != null) {
+                        callback.onSuccess();
+                    }
+                } else {
+                    String errorBody = "";
+                    try {
+                        if (response.errorBody() != null) {
+                            errorBody = response.errorBody().string();
+                        }
+                    } catch (Exception e) {
+                        Log.e(TAG, "Error reading error body", e);
+                    }
+                    Log.e(TAG, "Failed to get posts. Code: " + response.code() + ", Error: " + errorBody);
+                    if (callback != null) {
+                        callback.onError("Ошибка при загрузке постов: " + response.code() + " " + errorBody);
+                    }
+                }
+            }
+
+            @Override
+            public void onFailure(Call<List<Post>> call, Throwable t) {
+                Log.e(TAG, "Network error while getting posts", t);
+                if (callback != null) {
+                    callback.onError("Ошибка сети при загрузке постов: " + t.getMessage());
+                }
+            }
+        });
+    }
+
+    public List<Post> getPosts() {
+        return posts;
+    }
+
+    public void createPost(Post post, OnNetworkCallback callback) {
+        this.callback = callback;
+        // Логируем объект Post перед отправкой
+        Log.d(TAG, "Отправка поста: " + post.toString());
+
+        apiService.createPost(post).enqueue(new Callback<Post>() {
+            @Override
+            public void onResponse(Call<Post> call, Response<Post> response) {
+                if (response.isSuccessful() && response.body() != null) {
+                    if (callback != null) {
+                        callback.onSuccess();
+                    }
+                } else {
+                    String errorBody = "";
+                    try {
+                        if (response.errorBody() != null) {
+                            errorBody = response.errorBody().string();
+                        }
+                    } catch (Exception e) {
+                        Log.e(TAG, "Error reading error body", e);
+                    }
+                    Log.e(TAG, "Failed to create post. Code: " + response.code() + ", Error: " + errorBody);
+                    if (callback != null) {
+                        callback.onError("Ошибка при создании поста: " + response.code() + " " + errorBody);
+                    }
+                }
+            }
+
+            @Override
+            public void onFailure(Call<Post> call, Throwable t) {
+                Log.e(TAG, "Network error while creating post", t);
+                if (callback != null) {
+                    callback.onError("Ошибка сети при создании поста: " + t.getMessage());
+                }
+            }
+        });
     }
 }

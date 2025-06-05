@@ -1,10 +1,12 @@
 package space.krokodilich.ctt;
 
+import android.app.AlertDialog;
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.EditText;
+import android.widget.Toast;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
@@ -47,14 +49,23 @@ public class HomeFragment extends Fragment {
         sortDescButton = view.findViewById(R.id.sort_desc_button);
 
         setupFilters();
-        loadSamplePosts();
+        loadPosts();
         setupSearch();
         setupSorting();
     }
 
     private void setupFilters() {
-        List<String> tags = Arrays.asList("Все", "Достопримечательности", "Музеи", "Рестораны", "Отели", "Развлечения");
+        List<String> tags = Arrays.asList("Все", "Достопримечательности", "Музеи", "Рестораны", "Отели", "Развлечения", "Пейзаж", "Двор");
+        List<String> cities = Arrays.asList("Все города", "Москва", "Санкт-Петербург", "Новосибирск", "Екатеринбург", "Казань", "Нижний Новгород", "Самара", "Челябинск", "Омск");
         
+        // Добавляем фильтр по городам
+        Chip cityFilterChip = new Chip(requireContext());
+        cityFilterChip.setText("Город");
+        cityFilterChip.setCheckable(true);
+        cityFilterChip.setOnClickListener(v -> showCityFilterDialog(cities));
+        filterChipGroup.addView(cityFilterChip);
+        
+        // Добавляем остальные теги
         for (String tag : tags) {
             Chip chip = new Chip(requireContext());
             chip.setText(tag);
@@ -62,17 +73,34 @@ public class HomeFragment extends Fragment {
             chip.setOnCheckedChangeListener((buttonView, isChecked) -> {
                 if (isChecked) {
                     String selectedTag = tag.equals("Все") ? "" : tag;
-                    postAdapter.filterPosts(searchInput.getText().toString(), selectedTag);
+                    postAdapter.filterPosts(searchInput.getText().toString(), selectedTag, "");
                 }
             });
             filterChipGroup.addView(chip);
         }
     }
 
+    private void showCityFilterDialog(List<String> cities) {
+        AlertDialog.Builder builder = new AlertDialog.Builder(requireContext());
+        builder.setTitle("Выберите город");
+
+        final String[] cityArray = cities.toArray(new String[0]);
+        builder.setItems(cityArray, (dialog, which) -> {
+            String selectedCity = cityArray[which];
+            if (selectedCity.equals("Все города")) {
+                selectedCity = "";
+            }
+            postAdapter.filterPosts(searchInput.getText().toString(), "", selectedCity);
+        });
+
+        builder.show();
+    }
+
     private void setupSearch() {
         searchInput.setOnEditorActionListener((v, actionId, event) -> {
             String query = searchInput.getText().toString();
             String selectedTag = "";
+            String selectedCity = "";
             
             for (int i = 0; i < filterChipGroup.getChildCount(); i++) {
                 Chip chip = (Chip) filterChipGroup.getChildAt(i);
@@ -85,7 +113,7 @@ public class HomeFragment extends Fragment {
                 }
             }
             
-            postAdapter.filterPosts(query, selectedTag);
+            postAdapter.filterPosts(query, selectedTag, selectedCity);
             return true;
         });
     }
@@ -116,35 +144,26 @@ public class HomeFragment extends Fragment {
         postAdapter.setPosts(currentPosts);
     }
 
-    private void loadSamplePosts() {
-        originalPosts = new ArrayList<>();
-        
-        originalPosts.add(new Post(
-            "Иван Петров",
-            "https://example.com/avatar1.jpg",
-            "Москва",
-            "2 часа назад",
-            "https://example.com/red_square.jpg",
-            "Красная площадь",
-            "Достопримечательности",
-            "Красная площадь - главная площадь Москвы, расположенная в центре города...",
-            42,
-            15
-        ));
+    private void loadPosts() {
+        if (getActivity() instanceof MainActivity) {
+            space.krokodilich.ctt.ViewModel viewModel = ((MainActivity) getActivity()).getViewModel();
+            viewModel.getPosts(new space.krokodilich.ctt.ViewModel.OnNetworkCallback() {
+                @Override
+                public void onSuccess() {
+                    List<Post> posts = viewModel.getPosts();
+                    if (posts != null) {
+                        originalPosts = posts;
+                        postAdapter.setPosts(posts);
+                    }
+                }
 
-        originalPosts.add(new Post(
-            "Мария Иванова",
-            "https://example.com/avatar2.jpg",
-            "Санкт-Петербург",
-            "5 часов назад",
-            "https://example.com/hermitage.jpg",
-            "Эрмитаж",
-            "Музеи",
-            "Эрмитаж - один из крупнейших музеев мира, расположенный в Санкт-Петербурге...",
-            38,
-            12
-        ));
-
-        postAdapter.setPosts(originalPosts);
+                @Override
+                public void onError(String error) {
+                    if (getContext() != null) {
+                        Toast.makeText(getContext(), error, Toast.LENGTH_SHORT).show();
+                    }
+                }
+            });
+        }
     }
 }

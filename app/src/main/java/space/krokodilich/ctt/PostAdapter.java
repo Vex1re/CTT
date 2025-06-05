@@ -3,11 +3,9 @@ package space.krokodilich.ctt;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.ImageView;
 import android.widget.TextView;
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
-import com.bumptech.glide.Glide;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -49,15 +47,16 @@ public class PostAdapter extends RecyclerView.Adapter<PostAdapter.PostViewHolder
         return filteredPosts;
     }
 
-    public void filterPosts(String query, String tag) {
+    public void filterPosts(String query, String tag, String city) {
         filteredPosts.clear();
         for (Post post : posts) {
             boolean matchesQuery = query.isEmpty() ||
                     post.getPlaceName().toLowerCase().contains(query.toLowerCase()) ||
                     post.getDescription().toLowerCase().contains(query.toLowerCase());
             boolean matchesTag = tag.isEmpty() || post.getPlaceTag().equals(tag);
+            boolean matchesCity = city.isEmpty() || post.getLocation().equals(city);
 
-            if (matchesQuery && matchesTag) {
+            if (matchesQuery && matchesTag && matchesCity) {
                 filteredPosts.add(post);
             }
         }
@@ -65,11 +64,9 @@ public class PostAdapter extends RecyclerView.Adapter<PostAdapter.PostViewHolder
     }
 
     static class PostViewHolder extends RecyclerView.ViewHolder {
-        private ImageView authorAvatar;
         private TextView authorName;
         private TextView location;
         private TextView time;
-        private ImageView postImage;
         private TextView placeName;
         private TextView placeTag;
         private TextView description;
@@ -78,11 +75,9 @@ public class PostAdapter extends RecyclerView.Adapter<PostAdapter.PostViewHolder
 
         public PostViewHolder(@NonNull View itemView) {
             super(itemView);
-            authorAvatar = itemView.findViewById(R.id.author_avatar);
             authorName = itemView.findViewById(R.id.author_name);
             location = itemView.findViewById(R.id.post_location);
             time = itemView.findViewById(R.id.post_time);
-            postImage = itemView.findViewById(R.id.post_image);
             placeName = itemView.findViewById(R.id.place_name);
             placeTag = itemView.findViewById(R.id.place_tag);
             description = itemView.findViewById(R.id.place_description);
@@ -99,15 +94,6 @@ public class PostAdapter extends RecyclerView.Adapter<PostAdapter.PostViewHolder
             description.setText(post.getDescription());
             ratingValue.setText(String.valueOf(post.getRating()));
             commentsCount.setText(post.getCommentsCount() + " комментариев");
-
-            Glide.with(itemView.getContext())
-                    .load(post.getAuthorAvatar())
-                    .circleCrop()
-                    .into(authorAvatar);
-
-            Glide.with(itemView.getContext())
-                    .load(post.getImageUrl())
-                    .into(postImage);
         }
     }
 } 
