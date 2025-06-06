@@ -18,6 +18,7 @@ import com.google.android.material.button.MaterialButton;
 import androidx.viewpager2.widget.ViewPager2;
 import com.google.android.material.tabs.TabLayout;
 import com.google.android.material.tabs.TabLayoutMediator;
+import java.util.List;
 
 public class ProfileFragment extends Fragment {
 
@@ -93,13 +94,30 @@ public class ProfileFragment extends Fragment {
         });
     }
 
+    @Override
+    public void onResume() {
+        super.onResume();
+        // Обновляем данные профиля при возвращении на экран
+        loadUserProfile();
+    }
+
     private void loadUserProfile() {
         if (viewModel != null && viewModel.getCurrentUser() != null) {
             User user = viewModel.getCurrentUser();
             nameTextView.setText(user.getName() + " " + user.getSurname());
             cityTextView.setText(user.getCity());
             statusTextView.setText(user.getStatus());
-            postsTextView.setText(String.valueOf(user.getPosts()));
+            
+            // Получаем все посты и подсчитываем количество постов текущего пользователя
+            List<Post> allPosts = viewModel.getPosts();
+            int userPostsCount = 0;
+            if (allPosts != null) {
+                userPostsCount = (int) allPosts.stream()
+                    .filter(post -> user.getUsername().equals(post.getLogin()))
+                    .count();
+            }
+            postsTextView.setText(String.valueOf(userPostsCount));
+            
             ratingTextView.setText(String.valueOf(user.getRating()));
             statusCountTextView.setText(user.getStatus());
         }

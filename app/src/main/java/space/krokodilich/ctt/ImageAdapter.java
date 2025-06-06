@@ -8,15 +8,23 @@ import android.widget.ImageView;
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
 import com.bumptech.glide.Glide;
+import com.google.android.material.floatingactionbutton.FloatingActionButton;
+
 import java.util.ArrayList;
 import java.util.List;
 
 public class ImageAdapter extends RecyclerView.Adapter<ImageAdapter.ImageViewHolder> {
 
     private List<Uri> imageUris;
+    private OnImageRemoveListener listener;
 
-    public ImageAdapter(List<Uri> imageUris) {
+    public interface OnImageRemoveListener {
+        void onImageRemove(int position);
+    }
+
+    public ImageAdapter(List<Uri> imageUris, OnImageRemoveListener listener) {
         this.imageUris = new ArrayList<>(imageUris);
+        this.listener = listener;
     }
 
     @NonNull
@@ -24,7 +32,7 @@ public class ImageAdapter extends RecyclerView.Adapter<ImageAdapter.ImageViewHol
     public ImageViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
         View view = LayoutInflater.from(parent.getContext())
                 .inflate(R.layout.item_image, parent, false);
-        return new ImageViewHolder(view);
+        return new ImageViewHolder(view, listener);
     }
 
     @Override
@@ -47,12 +55,26 @@ public class ImageAdapter extends RecyclerView.Adapter<ImageAdapter.ImageViewHol
         return imageUris;
     }
 
+    public void removeImageAt(int position) {
+        imageUris.remove(position);
+        notifyItemRemoved(position);
+        notifyItemRangeChanged(position, imageUris.size());
+    }
+
     static class ImageViewHolder extends RecyclerView.ViewHolder {
         ImageView imageView;
+        FloatingActionButton removeButton;
 
-        public ImageViewHolder(@NonNull View itemView) {
+        public ImageViewHolder(@NonNull View itemView, OnImageRemoveListener listener) {
             super(itemView);
-            imageView = itemView.findViewById(R.id.post_image_item);
+            imageView = itemView.findViewById(R.id.image_view);
+            removeButton = itemView.findViewById(R.id.remove_image_button);
+
+            removeButton.setOnClickListener(v -> {
+                if (listener != null && getAdapterPosition() != RecyclerView.NO_POSITION) {
+                    listener.onImageRemove(getAdapterPosition());
+                }
+            });
         }
 
         public void bind(Uri uri) {

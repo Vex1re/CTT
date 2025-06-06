@@ -82,13 +82,23 @@
             app:layout_constraintTop_toBottomOf="@id/place_name"
             tools:text="Красная площадь - главная площадь Москвы, расположенная в центре города. Красная площадь разделяет Кремль и торговый район Китай-город. На площади расположены известные исторические объекты..." />
 
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/post_images_recyclerview"
+            android:layout_width="match_parent"
+            android:layout_height="200dp"
+            android:orientation="horizontal"
+            app:layout_constraintTop_toBottomOf="@id/place_description"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            tools:listitem="@layout/item_image" />
+
         <LinearLayout
             android:id="@+id/rating_container"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
             android:padding="8dp"
-            app:layout_constraintTop_toBottomOf="@id/place_description">
+            app:layout_constraintTop_toBottomOf="@id/post_images_recyclerview">
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/upvote_button"

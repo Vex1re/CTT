@@ -12,6 +12,12 @@ import okhttp3.OkHttpClient;
 import retrofit2.Retrofit;
 import retrofit2.converter.gson.GsonConverterFactory;
 import okhttp3.logging.HttpLoggingInterceptor;
+import okhttp3.MediaType;
+import okhttp3.RequestBody;
+import okhttp3.Request;
+import java.io.IOException;
+import com.google.gson.Gson;
+import androidx.annotation.NonNull;
 
 public class ViewModel {
     private static final String TAG = "ViewModel";
@@ -463,6 +469,53 @@ public class ViewModel {
                 Log.e(TAG, "Network error while creating post", t);
                 if (callback != null) {
                     callback.onError("Ошибка сети при создании поста: " + t.getMessage());
+                }
+            }
+        });
+    }
+
+    public void updatePostRating(PostRating postRating, OnNetworkCallback callback) {
+        // Создаем JSON из объекта PostRating
+        Gson gson = new Gson();
+        String json = gson.toJson(postRating);
+
+        // Отправляем запрос на сервер
+        String url = BASE_URL + "posts/" + postRating.getPostId();
+        RequestBody body = RequestBody.create(json, MediaType.parse("application/json; charset=utf-8"));
+
+        Request request = new Request.Builder()
+                .url(url)
+                .put(body)
+                .build();
+
+        OkHttpClient client = new OkHttpClient.Builder()
+                .addInterceptor(new HttpLoggingInterceptor().setLevel(HttpLoggingInterceptor.Level.BODY))
+                .build();
+
+        client.newCall(request).enqueue(new okhttp3.Callback() {
+            @Override
+            public void onFailure(@NonNull okhttp3.Call call, @NonNull IOException e) {
+                if (callback != null) {
+                    callback.onError("Ошибка сети: " + e.getMessage());
+                }
+            }
+
+            @Override
+            public void onResponse(@NonNull okhttp3.Call call, @NonNull okhttp3.Response response) {
+                try {
+                    if (!response.isSuccessful()) {
+                        if (callback != null) {
+                            callback.onError("Ошибка сервера: " + response.code());
+                        }
+                        return;
+                    }
+
+                    // Обновляем список постов после успешного обновления рейтинга
+                    getPosts(callback);
+                } catch (Exception e) {
+                    if (callback != null) {
+                        callback.onError("Ошибка обработки ответа: " + e.getMessage());
+                    }
                 }
             }
         });

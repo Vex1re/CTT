@@ -1,10 +1,17 @@
 package space.krokodilich.ctt;
 
+import com.google.gson.Gson;
 import com.google.gson.annotations.SerializedName;
+import com.google.gson.reflect.TypeToken;
 
+import java.lang.reflect.Type;
+import java.util.ArrayList;
 import java.util.List;
+import android.util.Log;
 
 public class Post {
+    private static final String TAG = "ImageDebug";
+
     @SerializedName("id")
     private Long id;
     @SerializedName("name")
@@ -25,11 +32,13 @@ public class Post {
     @SerializedName("login")
     private String login; // User's login
     @SerializedName("images")
-    private List<String> images; // List of image URLs
+    private String images; // JSON string of image URLs
+
+    private int userRating; // Текущая оценка пользователя (1, -1 или 0)
 
     public Post(Long id, String name, String location, String time,
                String description, int rating, String tag,
-               int commentsCount, String placeName, String login, List<String> images) {
+               int commentsCount, String placeName, String login, String images) {
         this.id = id;
         this.name = name;
         this.location = location;
@@ -41,6 +50,7 @@ public class Post {
         this.placeName = placeName;
         this.login = login;
         this.images = images;
+        this.userRating = 0; // По умолчанию нет оценки
     }
 
     public Long getId() {
@@ -83,8 +93,30 @@ public class Post {
         return login;
     }
 
-    public List<String> getImages() {
+    public String getImages() {
         return images;
+    }
+
+    public List<String> getImagesList() {
+        Log.d(TAG, "Raw images JSON: " + images);
+        if (images == null || images.isEmpty() || images.equals("[]")) {
+            Log.d(TAG, "Images JSON is null, empty, or empty array string.");
+            return new ArrayList<>();
+        }
+        try {
+            Gson gson = new Gson();
+            Type listType = new TypeToken<List<String>>(){}.getType();
+            List<String> imageUrls = gson.fromJson(images, listType);
+            Log.d(TAG, "Parsed image URLs: " + imageUrls);
+            return imageUrls;
+        } catch (Exception e) {
+            Log.e(TAG, "Error parsing images JSON: " + images, e);
+            return new ArrayList<>();
+        }
+    }
+
+    public int getUserRating() {
+        return userRating;
     }
 
     public void setId(Long id) {
@@ -127,7 +159,20 @@ public class Post {
         this.login = login;
     }
 
-    public void setImages(List<String> images) {
+    public void setImages(String images) {
         this.images = images;
+    }
+
+    public void setImagesList(List<String> imageUrls) {
+        if (imageUrls == null || imageUrls.isEmpty()) {
+            this.images = "[]";
+        } else {
+            Gson gson = new Gson();
+            this.images = gson.toJson(imageUrls);
+        }
+    }
+
+    public void setUserRating(int userRating) {
+        this.userRating = userRating;
     }
 }

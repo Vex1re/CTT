@@ -15,6 +15,9 @@ android {
         versionName "1.0"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+
+        // Define Yandex Client ID as a manifest placeholder
+        manifestPlaceholders = [YANDEX_CLIENT_ID: "7519a3d8a90141c899d20b37ed76b6c7"]
     }
 
     buildTypes {
@@ -51,5 +54,8 @@ dependencies {
 
     implementation 'com.github.bumptech.glide:glide:4.12.0'
     annotationProcessor 'com.github.bumptech.glide:compiler:4.12.0'
+
+    // Yandex ID Mobile SDK
+    implementation 'com.yandex.android:authsdk:3.1.3'
 
 }

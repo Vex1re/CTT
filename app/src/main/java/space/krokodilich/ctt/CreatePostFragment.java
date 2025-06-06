@@ -33,7 +33,7 @@ import android.widget.LinearLayout;
 import java.util.ArrayList;
 import java.util.stream.Collectors;
 
-public class CreatePostFragment extends Fragment {
+public class CreatePostFragment extends Fragment implements ImageAdapter.OnImageRemoveListener {
     private TextInputEditText placeNameInput;
     private MaterialAutoCompleteTextView placeCityInput;
     private TextInputEditText placeDescriptionInput;
@@ -112,7 +112,7 @@ public class CreatePostFragment extends Fragment {
 
         // Настройка RecyclerView для изображений
         imagesRecyclerView.setLayoutManager(new LinearLayoutManager(getContext(), LinearLayoutManager.HORIZONTAL, false));
-        imageAdapter = new ImageAdapter(selectedImageUris);
+        imageAdapter = new ImageAdapter(selectedImageUris, this);
         imagesRecyclerView.setAdapter(imageAdapter);
 
         // Настройка ActivityResultLauncher для выбора изображения
@@ -258,24 +258,26 @@ public class CreatePostFragment extends Fragment {
                 @Override
                 public void onSuccess() {
                     List<Post> currentPosts = viewModel.getPosts();
+
                     // Формируем полное имя пользователя (имя + фамилия)
                     String fullName = currentUser.getName() + " " + currentUser.getSurname();
                     String loginnn = currentUser.getUsername();
 
-                    // Создаем новый пост с определенным ID, включая список изображений
+                    // Создаем новый пост
                     Post newPost = new Post(
-                        null, // Передаем null для id, чтобы сервер сгенерировал его
-                        fullName, // имя и фамилия автора через пробел
-                        city, // город
-                        currentDate, // текущая дата в формате дд.мм.гггг
-                        description, // описание
-                        0, // рейтинг (по умолчанию 0)
-                        tag, // тэг
-                        0, // количество комментариев (по умолчанию 0)
-                        placeName, // название места
-                        loginnn, // логин пользователя
-                        imageUrls // список URL изображений
+                        null, // ID будет присвоен сервером
+                        fullName,
+                        city,
+                        currentDate,
+                        description,
+                        0, // Начальный рейтинг
+                        tag,
+                        0, // Начальное количество комментариев
+                        placeName,
+                        loginnn,
+                        "[]" // Пустой JSON массив для images
                     );
+                    newPost.setImagesList(imageUrls); // Преобразуем список URL в JSON строку
 
                     // Отправляем пост на сервер
                     viewModel.createPost(newPost, new ViewModel.OnNetworkCallback() {
@@ -291,9 +293,11 @@ public class CreatePostFragment extends Fragment {
                                         public void onSuccess() {
                                             if (getActivity() != null) {
                                                 getActivity().runOnUiThread(() -> {
-                                                    // Возвращаемся на главную страницу
+                                                    // Обновляем профиль
                                                     if (getActivity() instanceof MainActivity) {
-                                                        ((MainActivity) getActivity()).loadFragment(new HomeFragment());
+                                                        MainActivity mainActivity = (MainActivity) getActivity();
+                                                        ProfileFragment profileFragment = new ProfileFragment();
+                                                        mainActivity.loadFragment(profileFragment);
                                                     }
                                                 });
                                             }
@@ -342,6 +346,15 @@ public class CreatePostFragment extends Fragment {
             });
         } else {
             Toast.makeText(getContext(), "Ошибка: пользователь не авторизован", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    @Override
+    public void onImageRemove(int position) {
+        if (position >= 0 && position < selectedImageUris.size()) {
+            selectedImageUris.remove(position);
+            imageAdapter.removeImageAt(position);
+            updateImageUI(); // Update UI after removing an image
         }
     }
 } 

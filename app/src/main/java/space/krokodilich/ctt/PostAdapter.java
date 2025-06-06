@@ -1,15 +1,21 @@
 package space.krokodilich.ctt;
 
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.TextView;
+import android.widget.Toast;
 import androidx.annotation.NonNull;
+import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
+import com.google.android.material.button.MaterialButton;
 import java.util.ArrayList;
 import java.util.List;
 
 public class PostAdapter extends RecyclerView.Adapter<PostAdapter.PostViewHolder> {
+    private static final String TAG = "ImageDebug";
+
     private List<Post> posts;
     private List<Post> filteredPosts;
 
@@ -72,6 +78,11 @@ public class PostAdapter extends RecyclerView.Adapter<PostAdapter.PostViewHolder
         private TextView description;
         private TextView ratingValue;
         private TextView commentsCount;
+        private RecyclerView imagesRecyclerView;
+        private PostImageAdapter imageAdapter;
+        private MaterialButton upvoteButton;
+        private MaterialButton downvoteButton;
+        private ViewModel viewModel;
 
         public PostViewHolder(@NonNull View itemView) {
             super(itemView);
@@ -83,6 +94,19 @@ public class PostAdapter extends RecyclerView.Adapter<PostAdapter.PostViewHolder
             description = itemView.findViewById(R.id.place_description);
             ratingValue = itemView.findViewById(R.id.rating_value);
             commentsCount = itemView.findViewById(R.id.comments_button);
+            imagesRecyclerView = itemView.findViewById(R.id.post_images_recyclerview);
+            upvoteButton = itemView.findViewById(R.id.upvote_button);
+            downvoteButton = itemView.findViewById(R.id.downvote_button);
+
+            // Setup images RecyclerView
+            imagesRecyclerView.setLayoutManager(new LinearLayoutManager(itemView.getContext(), LinearLayoutManager.HORIZONTAL, false));
+            imageAdapter = new PostImageAdapter(new ArrayList<>());
+            imagesRecyclerView.setAdapter(imageAdapter);
+
+            // Получаем ViewModel
+            if (itemView.getContext() instanceof MainActivity) {
+                viewModel = ((MainActivity) itemView.getContext()).getViewModel();
+            }
         }
 
         public void bind(Post post) {
@@ -94,6 +118,93 @@ public class PostAdapter extends RecyclerView.Adapter<PostAdapter.PostViewHolder
             description.setText(post.getDescription());
             ratingValue.setText(String.valueOf(post.getRating()));
             commentsCount.setText(post.getCommentsCount() + " комментариев");
+
+            // Обновляем состояние кнопок рейтинга
+            updateRatingButtons(post);
+
+            // Настраиваем обработчики нажатий для кнопок рейтинга
+            setupRatingButtons(post);
+
+            // Set images for the images RecyclerView
+            List<String> imageUrls = post.getImagesList();
+            Log.d(TAG, "Binding post with image URLs: " + imageUrls);
+            if (imageUrls != null && !imageUrls.isEmpty()) {
+                imageAdapter.setImageUrls(imageUrls);
+                imagesRecyclerView.setVisibility(View.VISIBLE);
+            } else {
+                imageAdapter.setImageUrls(new ArrayList<>()); // Clear previous images
+                imagesRecyclerView.setVisibility(View.GONE);
+            }
+        }
+
+        private void updateRatingButtons(Post post) {
+            // Сбрасываем цвет кнопок
+            upvoteButton.setIconTint(null);
+            downvoteButton.setIconTint(null);
+
+            // Устанавливаем цвет в зависимости от текущей оценки
+            if (post.getUserRating() == 1) {
+                upvoteButton.setIconTintResource(android.R.color.holo_blue_dark);
+            } else if (post.getUserRating() == -1) {
+                downvoteButton.setIconTintResource(android.R.color.holo_red_dark);
+            }
+        }
+
+        private void setupRatingButtons(Post post) {
+            if (viewModel == null || viewModel.getCurrentUser() == null) {
+                upvoteButton.setEnabled(false);
+                downvoteButton.setEnabled(false);
+                return;
+            }
+
+            String currentUserLogin = viewModel.getCurrentUser().getUsername();
+
+            upvoteButton.setOnClickListener(v -> {
+                int newRating = post.getUserRating() == 1 ? 0 : 1;
+                updatePostRating(post, newRating);
+            });
+
+            downvoteButton.setOnClickListener(v -> {
+                int newRating = post.getUserRating() == -1 ? 0 : -1;
+                updatePostRating(post, newRating);
+            });
+        }
+
+        private void updatePostRating(Post post, int newRating) {
+            if (viewModel == null || viewModel.getCurrentUser() == null) return;
+
+            String currentUserLogin = viewModel.getCurrentUser().getUsername();
+            PostRating postRating = new PostRating(post.getId(), currentUserLogin, newRating);
+
+            // Отправляем оценку на сервер
+            viewModel.updatePostRating(postRating, new ViewModel.OnNetworkCallback() {
+                @Override
+                public void onSuccess() {
+                    // Обновляем рейтинг поста
+                    int ratingChange = newRating - post.getUserRating();
+                    post.setRating(post.getRating() + ratingChange);
+                    post.setUserRating(newRating);
+                    
+                    // Обновляем UI
+                    if (itemView.getContext() != null) {
+                        ((MainActivity) itemView.getContext()).runOnUiThread(() -> {
+                            ratingValue.setText(String.valueOf(post.getRating()));
+                            updateRatingButtons(post);
+                        });
+                    }
+                }
+
+                @Override
+                public void onError(String error) {
+                    if (itemView.getContext() != null) {
+                        ((MainActivity) itemView.getContext()).runOnUiThread(() -> {
+                            Toast.makeText(itemView.getContext(), 
+                                "Ошибка при обновлении рейтинга: " + error, 
+                                Toast.LENGTH_SHORT).show();
+                        });
+                    }
+                }
+            });
         }
     }
 } 
