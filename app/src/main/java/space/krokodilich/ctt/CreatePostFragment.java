@@ -23,6 +23,16 @@ import java.util.List;
 import java.util.Set;
 import java.util.HashSet;
 
+import android.net.Uri;
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
+import com.google.android.material.card.MaterialCardView;
+import android.widget.LinearLayout;
+import java.util.ArrayList;
+import java.util.stream.Collectors;
+
 public class CreatePostFragment extends Fragment {
     private TextInputEditText placeNameInput;
     private MaterialAutoCompleteTextView placeCityInput;
@@ -31,7 +41,17 @@ public class CreatePostFragment extends Fragment {
     private MaterialButton publishButton;
     private MaterialToolbar toolbar;
     private ViewModel viewModel;
-    private AutoCompleteTextView citySpinner;
+
+    private MaterialCardView addFirstImagePlaceholder;
+    private LinearLayout addedImagesContainer;
+    private RecyclerView imagesRecyclerView;
+    private MaterialButton addImageButton;
+    private ImageAdapter imageAdapter;
+    private List<Uri> selectedImageUris = new ArrayList<>();
+
+    private ActivityResultLauncher<String> selectImageLauncher;
+
+    private static final int MAX_IMAGES = 5;
 
     private static final String[] CITIES = {
         "Москва",
@@ -68,7 +88,11 @@ public class CreatePostFragment extends Fragment {
         tagChipGroup = view.findViewById(R.id.tag_chip_group);
         publishButton = view.findViewById(R.id.publish_button);
         toolbar = view.findViewById(R.id.toolbar);
-        citySpinner = view.findViewById(R.id.place_city_input);
+
+        addFirstImagePlaceholder = view.findViewById(R.id.add_first_image_placeholder);
+        addedImagesContainer = view.findViewById(R.id.added_images_container);
+        imagesRecyclerView = view.findViewById(R.id.images_recycler_view);
+        addImageButton = view.findViewById(R.id.add_image_button);
 
         // Настройка AutoCompleteTextView для городов
         ArrayAdapter<String> adapter = new ArrayAdapter<>(
@@ -86,8 +110,55 @@ public class CreatePostFragment extends Fragment {
             }
         });
 
+        // Настройка RecyclerView для изображений
+        imagesRecyclerView.setLayoutManager(new LinearLayoutManager(getContext(), LinearLayoutManager.HORIZONTAL, false));
+        imageAdapter = new ImageAdapter(selectedImageUris);
+        imagesRecyclerView.setAdapter(imageAdapter);
+
+        // Настройка ActivityResultLauncher для выбора изображения
+        selectImageLauncher = registerForActivityResult(
+            new ActivityResultContracts.GetContent(),
+            uri -> {
+                if (uri != null && selectedImageUris.size() < MAX_IMAGES) {
+                    selectedImageUris.add(uri);
+                    imageAdapter.addImageUri(uri);
+                    updateImageUI();
+                } else if (selectedImageUris.size() >= MAX_IMAGES) {
+                    Toast.makeText(getContext(), "Выбрано максимальное количество фотографий", Toast.LENGTH_SHORT).show();
+                }
+            }
+        );
+
         // Настройка обработчиков
         setupListeners();
+        setupImageListeners();
+        updateImageUI(); // Изначальное обновление UI изображений
+    }
+
+    private void setupImageListeners() {
+        addFirstImagePlaceholder.setOnClickListener(v -> selectImage());
+        addImageButton.setOnClickListener(v -> selectImage());
+    }
+
+    private void selectImage() {
+        selectImageLauncher.launch("image/*"); // Запускаем выбор изображений
+    }
+
+    private void updateImageUI() {
+        if (selectedImageUris.isEmpty()) {
+            addFirstImagePlaceholder.setVisibility(View.VISIBLE);
+            addedImagesContainer.setVisibility(View.GONE);
+        } else {
+            addFirstImagePlaceholder.setVisibility(View.GONE);
+            addedImagesContainer.setVisibility(View.VISIBLE);
+
+            // Скрываем кнопку добавления, если достигнут лимит
+            if (selectedImageUris.size() >= MAX_IMAGES) {
+                addImageButton.setVisibility(View.GONE);
+            } else {
+                addImageButton.setVisibility(View.VISIBLE);
+            }
+        }
     }
 
     private void showCityInputDialog() {
@@ -150,6 +221,12 @@ public class CreatePostFragment extends Fragment {
             return false;
         }
 
+        // Проверка наличия хотя бы одной фотографии
+        if (selectedImageUris.isEmpty()) {
+             Toast.makeText(getContext(), "Пожалуйста, добавьте хотя бы одну фотографию.", Toast.LENGTH_SHORT).show();
+             return false;
+        }
+
         return true;
     }
 
@@ -167,6 +244,11 @@ public class CreatePostFragment extends Fragment {
             SimpleDateFormat dateFormat = new SimpleDateFormat("dd.MM.yyyy", Locale.getDefault());
             String currentDate = dateFormat.format(new Date());
 
+            // Получаем список URI изображений в виде строк
+            List<String> imageUrls = selectedImageUris.stream()
+                                                .map(Uri::toString)
+                                                .collect(Collectors.toList());
+
             // Показываем прогресс
             publishButton.setEnabled(false);
             publishButton.setText("Публикация...");
@@ -176,35 +258,13 @@ public class CreatePostFragment extends Fragment {
                 @Override
                 public void onSuccess() {
                     List<Post> currentPosts = viewModel.getPosts();
-                    // Определяем следующий свободный ID
-                    Long nextId = 1L;
-                    if (currentPosts != null && !currentPosts.isEmpty()) {
-                        // Создаем множество существующих ID
-                        Set<Long> existingIds = new HashSet<>();
-                        for (Post post : currentPosts) {
-                            existingIds.add(post.getId());
-                        }
-                        
-                        // Находим максимальный ID
-                        Long maxId = currentPosts.stream()
-                                .mapToLong(Post::getId)
-                                .max()
-                                .orElse(0L);
-                        
-                        // Ищем первый свободный ID, начиная с максимального + 1
-                        nextId = maxId + 1;
-                        while (existingIds.contains(nextId)) {
-                            nextId++;
-                        }
-                    }
-
                     // Формируем полное имя пользователя (имя + фамилия)
                     String fullName = currentUser.getName() + " " + currentUser.getSurname();
                     String loginnn = currentUser.getUsername();
 
-                    // Создаем новый пост с определенным ID
+                    // Создаем новый пост с определенным ID, включая список изображений
                     Post newPost = new Post(
-                        nextId, // Следующий свободный ID
+                        null, // Передаем null для id, чтобы сервер сгенерировал его
                         fullName, // имя и фамилия автора через пробел
                         city, // город
                         currentDate, // текущая дата в формате дд.мм.гггг
@@ -213,7 +273,8 @@ public class CreatePostFragment extends Fragment {
                         tag, // тэг
                         0, // количество комментариев (по умолчанию 0)
                         placeName, // название места
-                        loginnn // логин пользователя
+                        loginnn, // логин пользователя
+                        imageUrls // список URL изображений
                     );
 
                     // Отправляем пост на сервер

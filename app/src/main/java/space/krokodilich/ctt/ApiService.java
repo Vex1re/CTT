@@ -20,6 +20,6 @@ public interface ApiService {
     @POST("users/login")
     Call<User> loginUser(@Body User user);
 
-    @POST("posts")
+    @POST("posts/all")
     Call<Post> createPost(@Body Post post);
 } 
