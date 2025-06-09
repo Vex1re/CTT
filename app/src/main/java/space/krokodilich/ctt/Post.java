@@ -28,11 +28,14 @@ public class Post {
     @SerializedName("commentsCount")
     private int commentsCount;
     @SerializedName("tag")
-    private String tag;
+    private String placeTag;
     @SerializedName("login")
     private String login; // User's login
     @SerializedName("images")
     private String images; // JSON string of image URLs
+
+    @SerializedName("likes")
+    private String likes; // JSON string of user reactions in format "login:status"
 
     private int userRating; // Текущая оценка пользователя (1, -1 или 0)
 
@@ -45,11 +48,12 @@ public class Post {
         this.time = time;
         this.description = description;
         this.rating = rating;
-        this.tag = tag;
+        this.placeTag = tag;
         this.commentsCount = commentsCount;
         this.placeName = placeName;
         this.login = login;
         this.images = images;
+        this.likes = "[]"; // Initialize with empty array
         this.userRating = 0; // По умолчанию нет оценки
     }
 
@@ -74,7 +78,7 @@ public class Post {
     }
 
     public String getPlaceTag() {
-        return tag;
+        return placeTag;
     }
 
     public String getDescription() {
@@ -97,6 +101,10 @@ public class Post {
         return images;
     }
 
+    public String getLikes() {
+        return likes;
+    }
+
     public List<String> getImagesList() {
         Log.d(TAG, "Raw images JSON: " + images);
         if (images == null || images.isEmpty() || images.equals("[]")) {
@@ -108,7 +116,25 @@ public class Post {
             Type listType = new TypeToken<List<String>>(){}.getType();
             List<String> imageUrls = gson.fromJson(images, listType);
             Log.d(TAG, "Parsed image URLs: " + imageUrls);
-            return imageUrls;
+            if (imageUrls == null) {
+                Log.e(TAG, "Parsed imageUrls is null");
+                return new ArrayList<>();
+            }
+            // Проверяем и корректируем URL изображений
+            List<String> correctedUrls = new ArrayList<>();
+            for (String url : imageUrls) {
+                if (url != null && !url.isEmpty()) {
+                    if (url.startsWith("http")) {
+                        correctedUrls.add(url);
+                    } else if (url.startsWith("/")) {
+                        correctedUrls.add("https://spring-boot-production-6510.up.railway.app" + url);
+                    } else {
+                        correctedUrls.add("https://spring-boot-production-6510.up.railway.app/" + url);
+                    }
+                }
+            }
+            Log.d(TAG, "Corrected image URLs: " + correctedUrls);
+            return correctedUrls;
         } catch (Exception e) {
             Log.e(TAG, "Error parsing images JSON: " + images, e);
             return new ArrayList<>();
@@ -151,8 +177,8 @@ public class Post {
         this.commentsCount = commentsCount;
     }
 
-    public void setTag(String tag) {
-        this.tag = tag;
+    public void setPlaceTag(String placeTag) {
+        this.placeTag = placeTag;
     }
 
     public void setLogin(String login) {
@@ -167,12 +193,92 @@ public class Post {
         if (imageUrls == null || imageUrls.isEmpty()) {
             this.images = "[]";
         } else {
+            Log.d(TAG, "Setting images list: " + imageUrls);
             Gson gson = new Gson();
             this.images = gson.toJson(imageUrls);
+            Log.d(TAG, "Serialized images JSON: " + this.images);
         }
     }
 
     public void setUserRating(int userRating) {
         this.userRating = userRating;
+    }
+
+    public void setLikes(String likes) {
+        this.likes = likes;
+    }
+
+    public List<String> getLikesList() {
+        if (likes == null || likes.isEmpty() || likes.equals("[]")) {
+            return new ArrayList<>();
+        }
+        try {
+            Gson gson = new Gson();
+            Type listType = new TypeToken<List<String>>(){}.getType();
+            return gson.fromJson(likes, listType);
+        } catch (Exception e) {
+            Log.e(TAG, "Error parsing likes JSON: " + likes, e);
+            return new ArrayList<>();
+        }
+    }
+
+    public void setLikesList(List<String> reactions) {
+        if (reactions == null || reactions.isEmpty()) {
+            this.likes = "[]";
+        } else {
+            Gson gson = new Gson();
+            this.likes = gson.toJson(reactions);
+        }
+    }
+
+    public boolean hasUserLiked(String userLogin) {
+        List<String> reactions = getLikesList();
+        for (String reaction : reactions) {
+            String[] parts = reaction.split(":");
+            if (parts.length == 2 && parts[0].equals(userLogin)) {
+                return parts[1].equals("true");
+            }
+        }
+        return false;
+    }
+
+    public boolean hasUserDisliked(String userLogin) {
+        List<String> reactions = getLikesList();
+        for (String reaction : reactions) {
+            String[] parts = reaction.split(":");
+            if (parts.length == 2 && parts[0].equals(userLogin)) {
+                return parts[1].equals("false");
+            }
+        }
+        return false;
+    }
+
+    public void addUserReaction(String userLogin, boolean isPositive) {
+        List<String> reactions = getLikesList();
+        // Удаляем предыдущую реакцию пользователя, если она есть
+        reactions.removeIf(reaction -> reaction.startsWith(userLogin + ":"));
+        // Добавляем новую реакцию
+        reactions.add(userLogin + ":" + isPositive);
+        setLikesList(reactions);
+    }
+
+    public void removeUserReaction(String userLogin) {
+        List<String> reactions = getLikesList();
+        reactions.removeIf(reaction -> reaction.startsWith(userLogin + ":"));
+        setLikesList(reactions);
+    }
+
+    public boolean hasUserReaction(String userLogin) {
+        List<String> reactions = getLikesList();
+        return reactions.stream().anyMatch(reaction -> reaction.startsWith(userLogin + ":"));
+    }
+
+    public boolean isUserReactionPositive(String userLogin) {
+        List<String> reactions = getLikesList();
+        return reactions.stream()
+                .filter(reaction -> reaction.startsWith(userLogin + ":"))
+                .findFirst()
+                .map(reaction -> reaction.endsWith(":true"))
+                .orElse(false);
     }
 }

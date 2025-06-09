@@ -22,12 +22,9 @@ import androidx.annotation.NonNull;
 import androidx.core.content.FileProvider;
 import android.net.Uri;
 import java.io.File;
-import android.database.Cursor;
-import android.provider.MediaStore;
-import java.util.HashMap;
-import java.util.Map;
+import androidx.lifecycle.ViewModel;
 
-public class ViewModel {
+public class AppViewModel extends ViewModel {
     private static final String TAG = "ViewModel";
     private ChatService chatService;
     private OnNetworkCallback callback;
@@ -62,18 +59,6 @@ public class ViewModel {
 
     public User getCurrentUser() {
         return currentUser;
-    }
-
-    public void setCurrentUser(User user) {
-        this.currentUser = user;
-    }
-
-    public void updateCurrentUser(User user) {
-        this.currentUser = user;
-        // Сохраняем ID пользователя, если он изменился
-        if (user != null && user.getId() != null) {
-            saveUserId(user.getId());
-        }
     }
 
     public interface OnNetworkCallback {
@@ -417,93 +402,36 @@ public class ViewModel {
     }
 
     public void getPosts(OnNetworkCallback callback) {
+        this.callback = callback;
         apiService.getPosts().enqueue(new Callback<List<Post>>() {
             @Override
             public void onResponse(Call<List<Post>> call, Response<List<Post>> response) {
                 if (response.isSuccessful() && response.body() != null) {
                     posts = response.body();
-                    Log.d("ViewModel", "Received posts: " + posts.size());
-                    for (Post post : posts) {
-                        Log.d("ViewModel", "Post " + post.getId() + " images: " + post.getImagesList());
+                    if (callback != null) {
+                        callback.onSuccess();
                     }
-                    callback.onSuccess();
                 } else {
-                    String errorMessage = "Ошибка при получении постов";
+                    String errorBody = "";
                     try {
                         if (response.errorBody() != null) {
-                            errorMessage += ": " + response.errorBody().string();
+                            errorBody = response.errorBody().string();
                         }
-                    } catch (IOException e) {
-                        Log.e("ViewModel", "Error reading error body", e);
+                    } catch (Exception e) {
+                        Log.e(TAG, "Error reading error body", e);
                     }
-                    callback.onError(errorMessage);
+                    Log.e(TAG, "Failed to get posts. Code: " + response.code() + ", Error: " + errorBody);
+                    if (callback != null) {
+                        callback.onError("Ошибка при загрузке постов: " + response.code() + " " + errorBody);
+                    }
                 }
             }
 
             @Override
             public void onFailure(Call<List<Post>> call, Throwable t) {
-                Log.e("ViewModel", "Network error while getting posts", t);
-                callback.onError("Ошибка сети: " + t.getMessage());
-            }
-        });
-    }
-
-    private void loadUserReactions() {
-        if (currentUser == null || currentUser.getUsername() == null) {
-            Log.d(TAG, "Cannot load user reactions: currentUser or username is null");
-            return;
-        }
-
-        Log.d(TAG, "Loading reactions for user: " + currentUser.getUsername());
-        apiService.getUserReactions(currentUser.getUsername()).enqueue(new Callback<Map<Long, Boolean>>() {
-            @Override
-            public void onResponse(Call<Map<Long, Boolean>> call, Response<Map<Long, Boolean>> response) {
-                if (response.isSuccessful() && response.body() != null && posts != null) {
-                    Map<Long, Boolean> reactions = response.body();
-                    Log.d(TAG, "Received reactions: " + reactions);
-                    
-                    // Обновляем посты с реакциями пользователя
-                    for (Post post : posts) {
-                        Boolean isPositive = reactions.get(post.getId());
-                        if (isPositive != null) {
-                            // Устанавливаем рейтинг пользователя (1 для лайка, -1 для дизлайка)
-                            post.setUserRating(isPositive ? 1 : -1);
-                            
-                            // Добавляем реакцию в список лайков поста
-                            post.addUserReaction(currentUser.getUsername(), isPositive);
-                            
-                            Log.d(TAG, "Updated post " + post.getId() + " with user rating: " + post.getUserRating());
-                        } else {
-                            // Если реакции нет, сбрасываем рейтинг пользователя
-                            post.setUserRating(0);
-                        }
-                    }
-                    
-                    // Уведомляем об успешной загрузке
-                    if (callback != null) {
-                        callback.onSuccess();
-                    }
-                } else {
-                    String errorMessage = "Unknown error";
-                    try {
-                        if (response.errorBody() != null) {
-                            errorMessage = response.errorBody().string();
-                        }
-                    } catch (IOException e) {
-                        Log.e(TAG, "Error reading error body", e);
-                    }
-                    Log.e(TAG, "Failed to load user reactions: " + errorMessage);
-                    if (callback != null) {
-                        callback.onError("Failed to load user reactions");
-                    }
-                }
-            }
-
-            @Override
-            public void onFailure(Call<Map<Long, Boolean>> call, Throwable t) {
-                Log.e(TAG, "Network error while loading user reactions", t);
+                Log.e(TAG, "Network error while getting posts", t);
                 if (callback != null) {
-                    callback.onError("Network error: " + t.getMessage());
+                    callback.onError("Ошибка сети при загрузке постов: " + t.getMessage());
                 }
             }
         });
@@ -514,77 +442,60 @@ public class ViewModel {
     }
 
     public void createPost(Post post, OnNetworkCallback callback) {
+        this.callback = callback;
+        Log.d(TAG, "Отправка поста: " + post.toString());
+
         apiService.createPost(post).enqueue(new Callback<Post>() {
             @Override
             public void onResponse(Call<Post> call, Response<Post> response) {
                 if (response.isSuccessful() && response.body() != null) {
                     Post createdPost = response.body();
-                    Log.d("ViewModel", "Created post with ID: " + createdPost.getId());
-                    
-                    // Добавляем пост в начало списка
-                    if (posts == null) {
-                        posts = new ArrayList<>();
-                    }
-                    posts.add(0, createdPost);
-                    
-                    // Если есть изображения, загружаем их
+                    // После создания поста загружаем изображения
                     if (post.getImagesList() != null && !post.getImagesList().isEmpty()) {
-                        List<Uri> imageUris = new ArrayList<>();
-                        for (String imagePath : post.getImagesList()) {
-                            imageUris.add(Uri.parse(imagePath));
-                        }
-                        uploadImages(createdPost.getId(), imageUris, callback);
+                        uploadImages(createdPost.getId(), post.getImagesList(), callback);
                     } else {
-                        callback.onSuccess();
+                        if (callback != null) {
+                            callback.onSuccess();
+                        }
                     }
                 } else {
-                    String errorMessage = "Ошибка при создании поста";
+                    String errorBody = "";
                     try {
                         if (response.errorBody() != null) {
-                            errorMessage += ": " + response.errorBody().string();
+                            errorBody = response.errorBody().string();
                         }
-                    } catch (IOException e) {
-                        Log.e("ViewModel", "Error reading error body", e);
+                    } catch (Exception e) {
+                        Log.e(TAG, "Error reading error body", e);
                     }
-                    callback.onError(errorMessage);
+                    Log.e(TAG, "Failed to create post. Code: " + response.code() + ", Error: " + errorBody);
+                    if (callback != null) {
+                        callback.onError("Ошибка при создании поста: " + response.code() + " " + errorBody);
+                    }
                 }
             }
 
             @Override
             public void onFailure(Call<Post> call, Throwable t) {
-                Log.e("ViewModel", "Network error while creating post", t);
-                callback.onError("Ошибка сети: " + t.getMessage());
+                Log.e(TAG, "Network error while creating post", t);
+                if (callback != null) {
+                    callback.onError("Ошибка сети при создании поста: " + t.getMessage());
+                }
             }
         });
     }
 
-    public void uploadImages(Long postId, List<Uri> imageUris, OnNetworkCallback callback) {
+    public void uploadImages(Long postId, List<String> imageUris, OnNetworkCallback callback) {
+        this.callback = callback;
         List<MultipartBody.Part> imageParts = new ArrayList<>();
         
-        for (Uri imageUri : imageUris) {
+        for (String imageUri : imageUris) {
             try {
-                String realPath = getRealPathFromUri(imageUri);
-                if (realPath != null) {
-                    File file = new File(realPath);
-                    if (!file.exists()) {
-                        Log.e("ViewModel", "File does not exist: " + realPath);
-                        continue;
-                    }
-                    
-                    // Проверка размера файла (максимум 10MB)
-                    if (file.length() > 10 * 1024 * 1024) {
-                        Log.e("ViewModel", "File too large: " + realPath);
-                        continue;
-                    }
-                    
-                    RequestBody requestFile = RequestBody.create(MediaType.parse("image/*"), file);
-                    MultipartBody.Part body = MultipartBody.Part.createFormData("files", file.getName(), requestFile);
-                    imageParts.add(body);
-                } else {
-                    Log.e("ViewModel", "Could not get real path for URI: " + imageUri);
-                }
+                File imageFile = new File(Uri.parse(imageUri).getPath());
+                RequestBody requestFile = RequestBody.create(MediaType.parse("image/*"), imageFile);
+                MultipartBody.Part body = MultipartBody.Part.createFormData("files", imageFile.getName(), requestFile);
+                imageParts.add(body);
             } catch (Exception e) {
-                Log.e("ViewModel", "Error preparing image for upload", e);
+                Log.e(TAG, "Error preparing image for upload: " + e.getMessage());
             }
         }
 
@@ -593,106 +504,20 @@ public class ViewModel {
                 @Override
                 public void onResponse(Call<Post> call, Response<Post> response) {
                     if (response.isSuccessful() && response.body() != null) {
-                        Post updatedPost = response.body();
-                        Log.d("ViewModel", "Images uploaded successfully. Updated post images: " + updatedPost.getImagesList());
-                        updatePostInList(updatedPost);
                         callback.onSuccess();
                     } else {
-                        String errorMessage = "Ошибка загрузки изображений";
-                        try {
-                            if (response.errorBody() != null) {
-                                errorMessage += ": " + response.errorBody().string();
-                            }
-                        } catch (IOException e) {
-                            Log.e("ViewModel", "Error reading error body", e);
-                        }
-                        callback.onError(errorMessage);
+                        callback.onError("Ошибка загрузки изображений: " + response.message());
                     }
                 }
 
                 @Override
                 public void onFailure(Call<Post> call, Throwable t) {
-                    Log.e("ViewModel", "Network error while uploading images", t);
                     callback.onError("Ошибка сети: " + t.getMessage());
                 }
             });
         } else {
-            callback.onError("Не удалось подготовить изображения для загрузки");
-        }
-    }
-
-    private String getRealPathFromUri(Uri uri) {
-        try {
-            if (uri == null) {
-                Log.e("ViewModel", "URI is null");
-                return null;
-            }
-
-            // Для content:// URI
-            if (uri.getScheme().equals("content")) {
-                try {
-                    // Создаем временный файл
-                    File tempFile = File.createTempFile("image_", ".jpg", context.getCacheDir());
-                    // Копируем данные из URI во временный файл
-                    java.io.InputStream inputStream = context.getContentResolver().openInputStream(uri);
-                    if (inputStream != null) {
-                        java.io.FileOutputStream outputStream = new java.io.FileOutputStream(tempFile);
-                        byte[] buffer = new byte[4096];
-                        int bytesRead;
-                        while ((bytesRead = inputStream.read(buffer)) != -1) {
-                            outputStream.write(buffer, 0, bytesRead);
-                        }
-                        outputStream.close();
-                        inputStream.close();
-                        return tempFile.getAbsolutePath();
-                    }
-                } catch (Exception e) {
-                    Log.e("ViewModel", "Error copying content to temp file", e);
-                }
-            }
-            // Для file:// URI
-            else if (uri.getScheme().equals("file")) {
-                return uri.getPath();
-            }
-            
-            Log.e("ViewModel", "Unsupported URI scheme: " + uri.getScheme());
-            return null;
-        } catch (Exception e) {
-            Log.e("ViewModel", "Error getting real path from URI", e);
-            return null;
-        }
-    }
-
-    private void updatePostInList(Post updatedPost) {
-        if (posts != null && updatedPost != null) {
-            Log.d(TAG, "Updating post in list. Post ID: " + updatedPost.getId() + ", Images: " + updatedPost.getImagesList());
-            
-            // Получаем текущего пользователя
-            String currentUsername = currentUser != null ? currentUser.getUsername() : null;
-            
-            // Проверяем, есть ли реакция пользователя в обновленном посте
-            List<String> likes = updatedPost.getLikesList();
-            int userRating = 0;
-            
-            if (currentUsername != null && likes != null) {
-                for (String like : likes) {
-                    if (like.startsWith(currentUsername + ":")) {
-                        userRating = like.endsWith(":true") ? 1 : -1;
-                        break;
-                    }
-                }
-            }
-            
-            // Устанавливаем рейтинг пользователя
-            updatedPost.setUserRating(userRating);
-            
-            // Обновляем пост в списке
-            for (int i = 0; i < posts.size(); i++) {
-                if (posts.get(i).getId().equals(updatedPost.getId())) {
-                    posts.set(i, updatedPost);
-                    Log.d(TAG, "Post updated in list at position " + i);
-                    break;
-                }
+            if (callback != null) {
+                callback.onSuccess();
             }
         }
     }
@@ -731,235 +556,48 @@ public class ViewModel {
     }
 
     public void updatePostRating(PostRating postRating, OnNetworkCallback callback) {
-        // Используем один эндпоинт для всех операций с рейтингом
+        this.callback = callback;
+        
+        // Отправляем запрос на сервер через Retrofit
         apiService.updatePostRating(postRating.getPostId(), postRating).enqueue(new Callback<Post>() {
             @Override
             public void onResponse(Call<Post> call, Response<Post> response) {
                 if (response.isSuccessful() && response.body() != null) {
-                    updatePostInList(response.body());
-                    callback.onSuccess();
-                } else {
-                    callback.onError("Ошибка при обновлении рейтинга: " + response.message());
-                }
-            }
-
-            @Override
-            public void onFailure(Call<Post> call, Throwable t) {
-                callback.onError("Ошибка сети: " + t.getMessage());
-            }
-        });
-    }
-
-    public void addLike(Long postId, String userLogin, OnNetworkCallback callback) {
-        if (userLogin == null || userLogin.isEmpty()) {
-            Log.e(TAG, "User login is null or empty");
-            if (callback != null) {
-                callback.onError("Логин пользователя не указан");
-            }
-            return;
-        }
-
-        Log.d(TAG, "Adding like for post " + postId + " and user " + userLogin);
-        this.callback = callback;
-        
-        Map<String, String> userData = new HashMap<>();
-        userData.put("userLogin", userLogin);
-        
-        apiService.addLike(postId, userData).enqueue(new Callback<Post>() {
-            @Override
-            public void onResponse(Call<Post> call, Response<Post> response) {
-                if (response.isSuccessful() && response.body() != null) {
+                    // Обновляем только обновленный пост в списке
                     Post updatedPost = response.body();
-                    // Проверяем, что лайк действительно добавлен
-                    if (updatedPost.hasUserLiked(userLogin)) {
-                        if (posts != null) {
-                            for (int i = 0; i < posts.size(); i++) {
-                                if (posts.get(i).getId().equals(updatedPost.getId())) {
-                                    posts.set(i, updatedPost);
-                                    break;
-                                }
-                            }
-                        }
-                        if (callback != null) {
-                            callback.onSuccess();
-                        }
-                    } else {
-                        if (callback != null) {
-                            callback.onError("Не удалось добавить лайк");
-                        }
-                    }
-                } else {
-                    String errorBody = "";
-                    try {
-                        if (response.errorBody() != null) {
-                            errorBody = response.errorBody().string();
-                        }
-                    } catch (Exception e) {
-                        Log.e(TAG, "Error reading error body", e);
-                    }
-                    Log.e(TAG, "Failed to add like. Code: " + response.code() + ", Error: " + errorBody);
-                    if (callback != null) {
-                        callback.onError("Ошибка при добавлении лайка: " + response.code() + " " + errorBody);
-                    }
-                }
-            }
-
-            @Override
-            public void onFailure(Call<Post> call, Throwable t) {
-                Log.e(TAG, "Network error while adding like", t);
-                if (callback != null) {
-                    callback.onError("Ошибка сети при добавлении лайка: " + t.getMessage());
-                }
-            }
-        });
-    }
-
-    public void removeLike(Long postId, String userLogin, OnNetworkCallback callback) {
-        if (userLogin == null || userLogin.isEmpty()) {
-            Log.e(TAG, "User login is null or empty");
-            if (callback != null) {
-                callback.onError("Логин пользователя не указан");
-            }
-            return;
-        }
-
-        Log.d(TAG, "Removing like for post " + postId + " and user " + userLogin);
-        this.callback = callback;
-        
-        Map<String, String> userData = new HashMap<>();
-        userData.put("userLogin", userLogin);
-        
-        apiService.removeLike(postId, userData).enqueue(new Callback<Post>() {
-            @Override
-            public void onResponse(Call<Post> call, Response<Post> response) {
-                if (response.isSuccessful() && response.body() != null) {
-                    Post updatedPost = response.body();
-                    // Проверяем, что лайк действительно удален
-                    if (!updatedPost.hasUserLiked(userLogin)) {
-                        if (posts != null) {
-                            for (int i = 0; i < posts.size(); i++) {
-                                if (posts.get(i).getId().equals(updatedPost.getId())) {
-                                    posts.set(i, updatedPost);
-                                    break;
-                                }
-                            }
-                        }
-                        if (callback != null) {
-                            callback.onSuccess();
-                        }
-                    } else {
-                        if (callback != null) {
-                            callback.onError("Не удалось удалить лайк");
-                        }
-                    }
-                } else {
-                    String errorBody = "";
-                    try {
-                        if (response.errorBody() != null) {
-                            errorBody = response.errorBody().string();
-                        }
-                    } catch (Exception e) {
-                        Log.e(TAG, "Error reading error body", e);
-                    }
-                    Log.e(TAG, "Failed to remove like. Code: " + response.code() + ", Error: " + errorBody);
-                    if (callback != null) {
-                        callback.onError("Ошибка при удалении лайка: " + response.code() + " " + errorBody);
-                    }
-                }
-            }
-
-            @Override
-            public void onFailure(Call<Post> call, Throwable t) {
-                Log.e(TAG, "Network error while removing like", t);
-                if (callback != null) {
-                    callback.onError("Ошибка сети при удалении лайка: " + t.getMessage());
-                }
-            }
-        });
-    }
-
-    public void checkLike(Long postId, String userLogin, OnLikeCheckCallback callback) {
-        if (userLogin == null || userLogin.isEmpty()) {
-            Log.e(TAG, "User login is null or empty");
-            if (callback != null) {
-                callback.onError("Логин пользователя не указан");
-            }
-            return;
-        }
-
-        Log.d(TAG, "Checking like for post " + postId + " and user " + userLogin);
-        apiService.checkLike(postId, userLogin).enqueue(new Callback<Post>() {
-            @Override
-            public void onResponse(Call<Post> call, Response<Post> response) {
-                if (response.isSuccessful() && response.body() != null) {
-                    Post post = response.body();
-                    boolean hasLiked = post.hasUserLiked(userLogin);
-                    if (callback != null) {
-                        callback.onSuccess(hasLiked);
-                    }
-                } else {
-                    String errorBody = "";
-                    try {
-                        if (response.errorBody() != null) {
-                            errorBody = response.errorBody().string();
-                        }
-                    } catch (Exception e) {
-                        Log.e(TAG, "Error reading error body", e);
-                    }
-                    Log.e(TAG, "Failed to check like. Code: " + response.code() + ", Error: " + errorBody);
-                    if (callback != null) {
-                        callback.onError("Ошибка при проверке лайка: " + response.code() + " " + errorBody);
-                    }
-                }
-            }
-
-            @Override
-            public void onFailure(Call<Post> call, Throwable t) {
-                Log.e(TAG, "Network error while checking like", t);
-                if (callback != null) {
-                    callback.onError("Ошибка сети при проверке лайка: " + t.getMessage());
-                }
-            }
-        });
-    }
-
-    public interface OnLikeCheckCallback {
-        void onSuccess(boolean hasLiked);
-        void onError(String error);
-    }
-
-    public void deletePost(Long postId, OnNetworkCallback callback) {
-        if (postId == null) {
-            callback.onError("ID поста не указан");
-            return;
-        }
-
-        apiService.deletePost(postId).enqueue(new Callback<Void>() {
-            @Override
-            public void onResponse(Call<Void> call, Response<Void> response) {
-                if (response.isSuccessful()) {
-                    // Удаляем пост из локального списка
                     if (posts != null) {
-                        posts.removeIf(post -> post.getId().equals(postId));
+                        for (int i = 0; i < posts.size(); i++) {
+                            if (posts.get(i).getId().equals(updatedPost.getId())) {
+                                posts.set(i, updatedPost);
+                                break;
+                            }
+                        }
                     }
-                    callback.onSuccess();
+                    if (callback != null) {
+                        callback.onSuccess();
+                    }
                 } else {
-                    String errorMessage = "Ошибка при удалении поста";
+                    String errorBody = "";
                     try {
                         if (response.errorBody() != null) {
-                            errorMessage += ": " + response.errorBody().string();
+                            errorBody = response.errorBody().string();
                         }
-                    } catch (IOException e) {
+                    } catch (Exception e) {
                         Log.e(TAG, "Error reading error body", e);
                     }
-                    callback.onError(errorMessage);
+                    Log.e(TAG, "Failed to update post rating. Code: " + response.code() + ", Error: " + errorBody);
+                    if (callback != null) {
+                        callback.onError("Ошибка при обновлении рейтинга: " + response.code() + " " + errorBody);
+                    }
                 }
             }
 
             @Override
-            public void onFailure(Call<Void> call, Throwable t) {
-                Log.e(TAG, "Network error while deleting post", t);
-                callback.onError("Ошибка сети при удалении поста: " + t.getMessage());
+            public void onFailure(Call<Post> call, Throwable t) {
+                Log.e(TAG, "Network error while updating post rating", t);
+                if (callback != null) {
+                    callback.onError("Ошибка сети при обновлении рейтинга: " + t.getMessage());
+                }
             }
         });
     }

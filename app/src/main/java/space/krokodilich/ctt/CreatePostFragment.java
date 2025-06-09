@@ -32,6 +32,18 @@ import com.google.android.material.card.MaterialCardView;
 import android.widget.LinearLayout;
 import java.util.ArrayList;
 import java.util.stream.Collectors;
+import android.util.Log;
+
+import android.Manifest;
+import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.net.Uri;
+import android.content.ClipData;
+import android.os.Build;
+import android.app.Activity;
+import android.provider.MediaStore;
+import android.database.Cursor;
+import java.io.File;
 
 public class CreatePostFragment extends Fragment implements ImageAdapter.OnImageRemoveListener {
     private TextInputEditText placeNameInput;
@@ -66,6 +78,9 @@ public class CreatePostFragment extends Fragment implements ImageAdapter.OnImage
         "Другой"
     };
 
+    private static final int PERMISSION_REQUEST_CODE = 1;
+    private static final int PICK_IMAGES_REQUEST = 2;
+
     @Nullable
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
@@ -76,23 +91,16 @@ public class CreatePostFragment extends Fragment implements ImageAdapter.OnImage
     public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
 
-        // Инициализация ViewModel
         if (getActivity() instanceof MainActivity) {
             viewModel = ((MainActivity) getActivity()).getViewModel();
         }
 
-        // Инициализация UI элементов
         placeNameInput = view.findViewById(R.id.place_name_input);
         placeCityInput = view.findViewById(R.id.place_city_input);
         placeDescriptionInput = view.findViewById(R.id.place_description_input);
         tagChipGroup = view.findViewById(R.id.tag_chip_group);
         publishButton = view.findViewById(R.id.publish_button);
         toolbar = view.findViewById(R.id.toolbar);
-
-        addFirstImagePlaceholder = view.findViewById(R.id.add_first_image_placeholder);
-        addedImagesContainer = view.findViewById(R.id.added_images_container);
-        imagesRecyclerView = view.findViewById(R.id.images_recycler_view);
-        addImageButton = view.findViewById(R.id.add_image_button);
 
         // Настройка AutoCompleteTextView для городов
         ArrayAdapter<String> adapter = new ArrayAdapter<>(
@@ -110,55 +118,68 @@ public class CreatePostFragment extends Fragment implements ImageAdapter.OnImage
             }
         });
 
+        // Настройка ChipGroup для тегов
+        tagChipGroup.setSingleSelection(true);
+        tagChipGroup.setOnCheckedChangeListener((group, checkedId) -> {
+            Chip selectedChip = group.findViewById(checkedId);
+            if (selectedChip != null) {
+                // Можно добавить дополнительную логику при выборе тега
+                Log.d("CreatePostFragment", "Selected tag: " + selectedChip.getText());
+            }
+        });
+
+        // Инициализация компонентов для работы с изображениями
+        addFirstImagePlaceholder = view.findViewById(R.id.add_first_image_placeholder);
+        addedImagesContainer = view.findViewById(R.id.added_images_container);
+        imagesRecyclerView = view.findViewById(R.id.images_recycler_view);
+        addImageButton = view.findViewById(R.id.add_image_button);
+
         // Настройка RecyclerView для изображений
         imagesRecyclerView.setLayoutManager(new LinearLayoutManager(getContext(), LinearLayoutManager.HORIZONTAL, false));
-        imageAdapter = new ImageAdapter(selectedImageUris, this);
+        imageAdapter = new ImageAdapter(this);
         imagesRecyclerView.setAdapter(imageAdapter);
 
-        // Настройка ActivityResultLauncher для выбора изображения
+        // Настройка выбора изображений
         selectImageLauncher = registerForActivityResult(
-            new ActivityResultContracts.GetContent(),
-            uri -> {
-                if (uri != null && selectedImageUris.size() < MAX_IMAGES) {
-                    selectedImageUris.add(uri);
-                    imageAdapter.addImageUri(uri);
-                    updateImageUI();
-                } else if (selectedImageUris.size() >= MAX_IMAGES) {
-                    Toast.makeText(getContext(), "Выбрано максимальное количество фотографий", Toast.LENGTH_SHORT).show();
+            new ActivityResultContracts.GetMultipleContents(),
+            uris -> {
+                if (uris != null && !uris.isEmpty()) {
+                    // Ограничиваем количество изображений
+                    int remainingSlots = MAX_IMAGES - selectedImageUris.size();
+                    if (remainingSlots > 0) {
+                        List<Uri> newUris = uris.subList(0, Math.min(remainingSlots, uris.size()));
+                        selectedImageUris.addAll(newUris);
+                        updateImagesUI();
+                    }
                 }
             }
         );
 
-        // Настройка обработчиков
-        setupListeners();
-        setupImageListeners();
-        updateImageUI(); // Изначальное обновление UI изображений
-    }
-
-    private void setupImageListeners() {
-        addFirstImagePlaceholder.setOnClickListener(v -> selectImage());
-        addImageButton.setOnClickListener(v -> selectImage());
-    }
-
-    private void selectImage() {
-        selectImageLauncher.launch("image/*"); // Запускаем выбор изображений
-    }
-
-    private void updateImageUI() {
-        if (selectedImageUris.isEmpty()) {
-            addFirstImagePlaceholder.setVisibility(View.VISIBLE);
-            addedImagesContainer.setVisibility(View.GONE);
-        } else {
-            addFirstImagePlaceholder.setVisibility(View.GONE);
-            addedImagesContainer.setVisibility(View.VISIBLE);
-
-            // Скрываем кнопку добавления, если достигнут лимит
-            if (selectedImageUris.size() >= MAX_IMAGES) {
-                addImageButton.setVisibility(View.GONE);
+        // Настройка кнопки добавления изображения
+        addImageButton.setOnClickListener(v -> {
+            if (selectedImageUris.size() < MAX_IMAGES) {
+                openImagePicker();
             } else {
-                addImageButton.setVisibility(View.VISIBLE);
+                Toast.makeText(getContext(), "Максимальное количество изображений: " + MAX_IMAGES, Toast.LENGTH_SHORT).show();
             }
-        }
+        });
+
+        // Настройка плейсхолдера для первого изображения
+        addFirstImagePlaceholder.setOnClickListener(v -> {
+            if (selectedImageUris.size() < MAX_IMAGES) {
+                openImagePicker();
+            }
+        });
+
+        // Настройка кнопки публикации
+        publishButton.setOnClickListener(v -> createPost());
+
+        // Настройка toolbar
+        toolbar.setNavigationOnClickListener(v -> {
+            if (getActivity() instanceof MainActivity) {
+                ((MainActivity) getActivity()).loadFragment(new ProfileFragment());
+            }
+        });
     }
 
     private void showCityInputDialog() {
@@ -179,63 +200,41 @@ public class CreatePostFragment extends Fragment implements ImageAdapter.OnImage
         builder.show();
     }
 
-    private void setupListeners() {
-        // Обработчик кнопки закрытия
-        toolbar.setNavigationOnClickListener(v -> {
-            if (getActivity() != null) {
-                getActivity().onBackPressed();
-            }
-        });
-
-        // Обработчик кнопки публикации
-        publishButton.setOnClickListener(v -> {
-            if (validateInputs()) {
-                createPost();
-            }
-        });
+    private void updateImagesUI() {
+        if (selectedImageUris.isEmpty()) {
+            imagesRecyclerView.setVisibility(View.GONE);
+            addedImagesContainer.setVisibility(View.GONE);
+            addFirstImagePlaceholder.setVisibility(View.VISIBLE);
+        } else {
+            imagesRecyclerView.setVisibility(View.VISIBLE);
+            addedImagesContainer.setVisibility(View.VISIBLE);
+            addFirstImagePlaceholder.setVisibility(View.GONE);
+            imageAdapter.setImages(selectedImageUris);
+        }
     }
 
-    private boolean validateInputs() {
-        String placeName = placeNameInput.getText() != null ? placeNameInput.getText().toString().trim() : "";
-        String city = placeCityInput.getText() != null ? placeCityInput.getText().toString().trim() : "";
-        String description = placeDescriptionInput.getText() != null ? placeDescriptionInput.getText().toString().trim() : "";
-        int selectedChipId = tagChipGroup.getCheckedChipId();
-
-        if (placeName.isEmpty()) {
-            placeNameInput.setError("Введите название места");
-            return false;
-        }
-
-        if (city.isEmpty()) {
-            placeCityInput.setError("Выберите город");
-            return false;
-        }
-
-        if (description.isEmpty()) {
-            placeDescriptionInput.setError("Введите описание места");
-            return false;
-        }
-
-        if (selectedChipId == View.NO_ID) {
-            Toast.makeText(getContext(), "Выберите категорию", Toast.LENGTH_SHORT).show();
-            return false;
-        }
-
-        // Проверка наличия хотя бы одной фотографии
-        if (selectedImageUris.isEmpty()) {
-             Toast.makeText(getContext(), "Пожалуйста, добавьте хотя бы одну фотографию.", Toast.LENGTH_SHORT).show();
-             return false;
-        }
-
-        return true;
+    @Override
+    public void onImageRemove(int position) {
+        selectedImageUris.remove(position);
+        updateImagesUI();
     }
 
     private void createPost() {
-        String placeName = placeNameInput.getText().toString().trim();
+        String title = placeNameInput.getText().toString().trim();
+        String content = placeDescriptionInput.getText().toString().trim();
         String city = placeCityInput.getText().toString().trim();
-        String description = placeDescriptionInput.getText().toString().trim();
         Chip selectedChip = tagChipGroup.findViewById(tagChipGroup.getCheckedChipId());
         String tag = selectedChip != null ? selectedChip.getText().toString() : "";
+
+        if (title.isEmpty() || content.isEmpty() || city.isEmpty()) {
+            Toast.makeText(getContext(), "Заполните все поля", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        if (selectedImageUris.isEmpty()) {
+            Toast.makeText(getContext(), "Добавьте хотя бы одну фотографию", Toast.LENGTH_SHORT).show();
+            return;
+        }
 
         if (viewModel != null && viewModel.getCurrentUser() != null) {
             User currentUser = viewModel.getCurrentUser();
@@ -244,117 +243,137 @@ public class CreatePostFragment extends Fragment implements ImageAdapter.OnImage
             SimpleDateFormat dateFormat = new SimpleDateFormat("dd.MM.yyyy", Locale.getDefault());
             String currentDate = dateFormat.format(new Date());
 
-            // Получаем список URI изображений в виде строк
-            List<String> imageUrls = selectedImageUris.stream()
-                                                .map(Uri::toString)
-                                                .collect(Collectors.toList());
-
             // Показываем прогресс
             publishButton.setEnabled(false);
             publishButton.setText("Публикация...");
 
-            // Сначала получаем текущий список постов, чтобы определить следующий ID
-            viewModel.getPosts(new ViewModel.OnNetworkCallback() {
+            // Создаем новый пост
+            Post newPost = new Post(
+                null, // ID будет присвоен сервером
+                currentUser.getName() + " " + currentUser.getSurname(),
+                city,
+                currentDate,
+                content,
+                0, // Начальный рейтинг
+                tag, // Передаем тег
+                0, // Начальное количество комментариев
+                title,
+                currentUser.getUsername(),
+                "[]" // Пустой JSON массив для images
+            );
+
+            // Отправляем пост на сервер
+            viewModel.createPost(newPost, new ViewModel.OnNetworkCallback() {
                 @Override
                 public void onSuccess() {
-                    List<Post> currentPosts = viewModel.getPosts();
-
-                    // Формируем полное имя пользователя (имя + фамилия)
-                    String fullName = currentUser.getName() + " " + currentUser.getSurname();
-                    String loginnn = currentUser.getUsername();
-
-                    // Создаем новый пост
-                    Post newPost = new Post(
-                        null, // ID будет присвоен сервером
-                        fullName,
-                        city,
-                        currentDate,
-                        description,
-                        0, // Начальный рейтинг
-                        tag,
-                        0, // Начальное количество комментариев
-                        placeName,
-                        loginnn,
-                        "[]" // Пустой JSON массив для images
-                    );
-                    newPost.setImagesList(imageUrls); // Преобразуем список URL в JSON строку
-
-                    // Отправляем пост на сервер
-                    viewModel.createPost(newPost, new ViewModel.OnNetworkCallback() {
-                        @Override
-                        public void onSuccess() {
-                            if (getActivity() != null) {
-                                getActivity().runOnUiThread(() -> {
-                                    Toast.makeText(getContext(), "Пост успешно опубликован", Toast.LENGTH_SHORT).show();
-                                    
-                                    // Обновляем список постов
-                                    viewModel.getPosts(new ViewModel.OnNetworkCallback() {
-                                        @Override
-                                        public void onSuccess() {
-                                            if (getActivity() != null) {
-                                                getActivity().runOnUiThread(() -> {
-                                                    // Обновляем профиль
-                                                    if (getActivity() instanceof MainActivity) {
-                                                        MainActivity mainActivity = (MainActivity) getActivity();
-                                                        ProfileFragment profileFragment = new ProfileFragment();
-                                                        mainActivity.loadFragment(profileFragment);
-                                                    }
-                                                });
-                                            }
-                                        }
-
-                                        @Override
-                                        public void onError(String error) {
-                                            if (getActivity() != null) {
-                                                getActivity().runOnUiThread(() -> {
-                                                    Toast.makeText(getContext(), "Ошибка при обновлении списка постов: " + error, Toast.LENGTH_LONG).show();
-                                                    // Даже при ошибке обновления возвращаемся на главную
-                                                    if (getActivity() instanceof MainActivity) {
-                                                        ((MainActivity) getActivity()).loadFragment(new HomeFragment());
-                                                    }
-                                                });
-                                            }
+                    if (getActivity() == null) return;
+                    
+                    // После создания поста загружаем изображения
+                    if (!selectedImageUris.isEmpty()) {
+                        publishButton.setText("Загрузка изображений...");
+                        // Получаем созданный пост из ViewModel
+                        Post createdPost = viewModel.getPosts().get(0); // Пост добавляется в начало списка
+                        if (createdPost != null && createdPost.getId() != null) {
+                            viewModel.uploadImages(createdPost.getId(), selectedImageUris, new ViewModel.OnNetworkCallback() {
+                                @Override
+                                public void onSuccess() {
+                                    if (getActivity() == null) return;
+                                    getActivity().runOnUiThread(() -> {
+                                        publishButton.setEnabled(true);
+                                        publishButton.setText("Опубликовать");
+                                        if (getActivity() instanceof MainActivity) {
+                                            ((MainActivity) getActivity()).loadFragment(new ProfileFragment());
                                         }
                                     });
-                                });
-                            }
-                        }
+                                }
 
-                        @Override
-                        public void onError(String error) {
-                            if (getActivity() != null) {
-                                getActivity().runOnUiThread(() -> {
-                                    Toast.makeText(getContext(), error, Toast.LENGTH_LONG).show();
-                                    publishButton.setEnabled(true);
-                                    publishButton.setText("Опубликовать");
-                                });
-                            }
+                                @Override
+                                public void onError(String error) {
+                                    if (getActivity() == null) return;
+                                    getActivity().runOnUiThread(() -> {
+                                        publishButton.setEnabled(true);
+                                        publishButton.setText("Опубликовать");
+                                        if (getActivity() instanceof MainActivity) {
+                                            ((MainActivity) getActivity()).loadFragment(new ProfileFragment());
+                                        }
+                                    });
+                                }
+                            });
+                        } else {
+                            if (getActivity() == null) return;
+                            getActivity().runOnUiThread(() -> {
+                                publishButton.setEnabled(true);
+                                publishButton.setText("Опубликовать");
+                                if (getActivity() instanceof MainActivity) {
+                                    ((MainActivity) getActivity()).loadFragment(new ProfileFragment());
+                                }
+                            });
                         }
-                    });
+                    } else {
+                        if (getActivity() == null) return;
+                        getActivity().runOnUiThread(() -> {
+                            publishButton.setEnabled(true);
+                            publishButton.setText("Опубликовать");
+                            if (getActivity() instanceof MainActivity) {
+                                ((MainActivity) getActivity()).loadFragment(new ProfileFragment());
+                            }
+                        });
+                    }
                 }
 
                 @Override
                 public void onError(String error) {
-                    if (getActivity() != null) {
-                        getActivity().runOnUiThread(() -> {
-                            Toast.makeText(getContext(), "Ошибка при получении списка постов для определения ID: " + error, Toast.LENGTH_LONG).show();
-                            publishButton.setEnabled(true);
-                            publishButton.setText("Опубликовать");
-                        });
-                    }
+                    if (getActivity() == null) return;
+                    getActivity().runOnUiThread(() -> {
+                        publishButton.setEnabled(true);
+                        publishButton.setText("Опубликовать");
+                    });
                 }
             });
-        } else {
-            Toast.makeText(getContext(), "Ошибка: пользователь не авторизован", Toast.LENGTH_SHORT).show();
         }
     }
 
+    private String getRealPathFromUri(Uri uri) {
+        String[] projection = {MediaStore.Images.Media.DATA};
+        Cursor cursor = requireContext().getContentResolver().query(uri, projection, null, null, null);
+        if (cursor != null) {
+            int columnIndex = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.DATA);
+            cursor.moveToFirst();
+            String path = cursor.getString(columnIndex);
+            cursor.close();
+            return path;
+        }
+        return null;
+    }
+
+    private void openImagePicker() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (requireContext().checkSelfPermission(Manifest.permission.READ_MEDIA_IMAGES) != PackageManager.PERMISSION_GRANTED) {
+                requestPermissions(new String[]{Manifest.permission.READ_MEDIA_IMAGES}, PERMISSION_REQUEST_CODE);
+                return;
+            }
+        } else {
+            if (requireContext().checkSelfPermission(Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+                requestPermissions(new String[]{Manifest.permission.READ_EXTERNAL_STORAGE}, PERMISSION_REQUEST_CODE);
+                return;
+            }
+        }
+        selectImageLauncher.launch("image/*");
+    }
+
     @Override
-    public void onImageRemove(int position) {
-        if (position >= 0 && position < selectedImageUris.size()) {
-            selectedImageUris.remove(position);
-            imageAdapter.removeImageAt(position);
-            updateImageUI(); // Update UI after removing an image
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, 
+            @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == PERMISSION_REQUEST_CODE) {
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                // Разрешение получено, открываем галерею
+                selectImageLauncher.launch("image/*");
+            } else {
+                Toast.makeText(requireContext(), 
+                        "Для загрузки изображений необходимо разрешение на доступ к галерее", 
+                        Toast.LENGTH_LONG).show();
+            }
         }
     }
 } 

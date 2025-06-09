@@ -12,20 +12,18 @@ public class ProfilePagerAdapter extends FragmentStateAdapter {
     @NonNull
     @Override
     public Fragment createFragment(int position) {
-        // Возвращаем разные фрагменты для разных вкладок
         switch (position) {
             case 0:
-                return new UserPostsFragment(); // Фрагмент для "Мои посты"
+                return new UserPostsFragment();
             case 1:
-                // Здесь будет фрагмент для "Понравившиеся"
-                return new Fragment(); // Пока возвращаем пустой фрагмент
+                return new LikedPostsFragment();
             default:
-                return new Fragment();
+                throw new IllegalArgumentException("Invalid position: " + position);
         }
     }
 
     @Override
     public int getItemCount() {
-        return 2; // Количество вкладок: "Мои посты" и "Понравившиеся"
+        return 2;
     }
 } 

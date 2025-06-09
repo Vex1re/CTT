@@ -1,21 +1,14 @@
 package space.krokodilich.ctt;
 
-import com.google.gson.annotations.SerializedName;
-
 public class PostRating {
-    @SerializedName("postId")
     private Long postId;
-    
-    @SerializedName("userLogin")
     private String userLogin;
-    
-    @SerializedName("rating")
-    private int rating; // 1 для лайка, -1 для дизлайка, 0 для отмены оценки
+    private Boolean isPositive;
 
-    public PostRating(Long postId, String userLogin, int rating) {
+    public PostRating(Long postId, String userLogin, Boolean isPositive) {
         this.postId = postId;
         this.userLogin = userLogin;
-        this.rating = rating;
+        this.isPositive = isPositive;
     }
 
     public Long getPostId() {
@@ -34,11 +27,11 @@ public class PostRating {
         this.userLogin = userLogin;
     }
 
-    public int getRating() {
-        return rating;
+    public Boolean getIsPositive() {
+        return isPositive;
     }
 
-    public void setRating(int rating) {
-        this.rating = rating;
+    public void setIsPositive(Boolean isPositive) {
+        this.isPositive = isPositive;
     }
 } 

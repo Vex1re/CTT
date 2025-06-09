@@ -1,6 +1,8 @@
 package space.krokodilich.ctt;
 
+import android.content.Intent;
 import android.net.Uri;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -15,15 +17,15 @@ import java.util.List;
 
 public class ImageAdapter extends RecyclerView.Adapter<ImageAdapter.ImageViewHolder> {
 
-    private List<Uri> imageUris;
+    private List<Uri> images;
     private OnImageRemoveListener listener;
 
     public interface OnImageRemoveListener {
         void onImageRemove(int position);
     }
 
-    public ImageAdapter(List<Uri> imageUris, OnImageRemoveListener listener) {
-        this.imageUris = new ArrayList<>(imageUris);
+    public ImageAdapter(OnImageRemoveListener listener) {
+        this.images = new ArrayList<>();
         this.listener = listener;
     }
 
@@ -31,59 +33,45 @@ public class ImageAdapter extends RecyclerView.Adapter<ImageAdapter.ImageViewHol
     @Override
     public ImageViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
         View view = LayoutInflater.from(parent.getContext())
-                .inflate(R.layout.item_image, parent, false);
-        return new ImageViewHolder(view, listener);
+                .inflate(R.layout.item_image_edit, parent, false);
+        return new ImageViewHolder(view);
     }
 
     @Override
     public void onBindViewHolder(@NonNull ImageViewHolder holder, int position) {
-        Uri imageUri = imageUris.get(position);
-        holder.bind(imageUri);
+        Uri imageUri = images.get(position);
+        
+        // Загружаем изображение с помощью Glide
+        Glide.with(holder.itemView.getContext())
+            .load(imageUri)
+            .centerCrop()
+            .into(holder.imageView);
+
+        holder.removeButton.setOnClickListener(v -> {
+            if (listener != null) {
+                listener.onImageRemove(position);
+            }
+        });
     }
 
     @Override
     public int getItemCount() {
-        return imageUris.size();
+        return images.size();
     }
 
-    public void addImageUri(Uri uri) {
-        imageUris.add(uri);
-        notifyItemInserted(imageUris.size() - 1);
-    }
-
-    public List<Uri> getImageUris() {
-        return imageUris;
-    }
-
-    public void removeImageAt(int position) {
-        imageUris.remove(position);
-        notifyItemRemoved(position);
-        notifyItemRangeChanged(position, imageUris.size());
+    public void setImages(List<Uri> images) {
+        this.images = images;
+        notifyDataSetChanged();
     }
 
     static class ImageViewHolder extends RecyclerView.ViewHolder {
         ImageView imageView;
         FloatingActionButton removeButton;
 
-        public ImageViewHolder(@NonNull View itemView, OnImageRemoveListener listener) {
+        public ImageViewHolder(@NonNull View itemView) {
             super(itemView);
             imageView = itemView.findViewById(R.id.image_view);
             removeButton = itemView.findViewById(R.id.remove_image_button);
-
-            removeButton.setOnClickListener(v -> {
-                if (listener != null && getAdapterPosition() != RecyclerView.NO_POSITION) {
-                    listener.onImageRemove(getAdapterPosition());
-                }
-            });
-        }
-
-        public void bind(Uri uri) {
-            // Use Glide or another image loading library to load the image from URI
-            // Make sure you have Glide added as a dependency in your build.gradle file
-            Glide.with(itemView.getContext())
-                    .load(uri)
-                    .centerCrop()
-                    .into(imageView);
         }
     }
 } 

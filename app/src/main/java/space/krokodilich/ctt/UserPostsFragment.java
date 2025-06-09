@@ -42,7 +42,7 @@ public class UserPostsFragment extends Fragment implements ViewModel.OnNetworkCa
         noPostsMessage = view.findViewById(R.id.no_posts_message);
 
         userPostsRecyclerView.setLayoutManager(new LinearLayoutManager(getContext()));
-        postAdapter = new PostAdapter();
+        postAdapter = new PostAdapter(requireContext(), new ArrayList<>(), viewModel, true);
         userPostsRecyclerView.setAdapter(postAdapter);
 
         loadUserPosts();

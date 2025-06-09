@@ -33,6 +33,9 @@ public class User {
     @SerializedName("status")
     private String status;
 
+    @SerializedName("avatar")
+    private String avatar;
+
     public User(String username, String name, String surname, String email, String city, String password) {
         this.username = username;
         this.name = name;
@@ -123,6 +126,14 @@ public class User {
 
     public void setStatus(String status) {
         this.status = status;
+    }
+
+    public String getAvatar() {
+        return avatar;
+    }
+
+    public void setAvatar(String avatar) {
+        this.avatar = avatar;
     }
 
     @Override

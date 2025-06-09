@@ -12,6 +12,18 @@ public class RetrofitClient {
     private static final String TAG = "RetrofitClient";
     private static final String BASE_URL = "https://spring-boot-production-6510.up.railway.app/";
     private static Retrofit retrofit = null;
+    private static RetrofitClient instance = null;
+
+    public static RetrofitClient getInstance() {
+        if (instance == null) {
+            instance = new RetrofitClient();
+        }
+        return instance;
+    }
+
+    public ApiService getApiService() {
+        return getClient().create(ApiService.class);
+    }
 
     public static Retrofit getClient() {
         if (retrofit == null) {

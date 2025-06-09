@@ -19,6 +19,30 @@ import androidx.viewpager2.widget.ViewPager2;
 import com.google.android.material.tabs.TabLayout;
 import com.google.android.material.tabs.TabLayoutMediator;
 import java.util.List;
+import android.content.Intent;
+import android.net.Uri;
+import android.provider.MediaStore;
+import android.widget.ImageView;
+import com.bumptech.glide.Glide;
+import okhttp3.MediaType;
+import okhttp3.MultipartBody;
+import okhttp3.RequestBody;
+import retrofit2.Call;
+import retrofit2.Callback;
+import retrofit2.Response;
+import android.widget.Toast;
+import java.io.File;
+import java.io.IOException;
+import android.util.Log;
+import android.app.ProgressDialog;
+import android.os.Handler;
+import com.bumptech.glide.request.RequestListener;
+import com.bumptech.glide.request.target.Target;
+import com.bumptech.glide.request.target.DrawableImageViewTarget;
+import android.graphics.drawable.Drawable;
+import com.bumptech.glide.load.DataSource;
+import com.bumptech.glide.load.engine.GlideException;
+import android.os.Looper;
 
 public class ProfileFragment extends Fragment {
 
@@ -33,6 +57,8 @@ public class ProfileFragment extends Fragment {
     private ViewPager2 viewPager;
     private TabLayout tabLayout;
     private ProfilePagerAdapter pagerAdapter;
+    private ImageView avatarImageView;
+    private static final int PICK_IMAGE_REQUEST = 101;
 
     @Nullable
     @Override
@@ -58,6 +84,7 @@ public class ProfileFragment extends Fragment {
         statusCountTextView = view.findViewById(R.id.profile_status_count);
         createPostButton = view.findViewById(R.id.create_post_button);
         MaterialButton logoutButton = view.findViewById(R.id.logout_button);
+        avatarImageView = view.findViewById(R.id.profile_avatar);
 
         // Настройка ViewPager и TabLayout
         viewPager = view.findViewById(R.id.profile_viewpager);
@@ -66,11 +93,34 @@ public class ProfileFragment extends Fragment {
         viewPager.setAdapter(pagerAdapter);
 
         new TabLayoutMediator(tabLayout, viewPager,
-                (tab, position) -> tab.setText(position == 0 ? "Мои посты" : "Понравившиеся")
+                (tab, position) -> {
+                    switch (position) {
+                        case 0:
+                            tab.setText("Мои посты");
+                            break;
+                        case 1:
+                            tab.setText("Понравившиеся");
+                            break;
+                    }
+                }
         ).attach();
 
         // Загрузка данных пользователя
         loadUserProfile();
+
+        // Загрузка аватара
+        if (viewModel.getCurrentUser() != null && viewModel.getCurrentUser().getAvatar() != null) {
+            String avatarUrl = viewModel.getCurrentUser().getAvatar();
+            if (!avatarUrl.startsWith("http")) {
+                avatarUrl = "https://spring-boot-production-6510.up.railway.app" + avatarUrl;
+            }
+            Glide.with(this)
+                .load(avatarUrl)
+                .placeholder(R.drawable.ic_default_avatar)
+                .error(R.drawable.ic_default_avatar)
+                .into(avatarImageView);
+        }
+        avatarImageView.setOnClickListener(v -> openImagePicker());
 
         // Обработчики нажатий
         createPostButton.setOnClickListener(v -> {
@@ -106,7 +156,24 @@ public class ProfileFragment extends Fragment {
             User user = viewModel.getCurrentUser();
             nameTextView.setText(user.getName() + " " + user.getSurname());
             cityTextView.setText(user.getCity());
-            statusTextView.setText(user.getStatus());
+            
+            // Определяем статус на основе рейтинга
+            String status;
+            if (user.getRating() >= 1000) {
+                status = "Легенда";
+            } else if (user.getRating() >= 500) {
+                status = "Эксперт";
+            } else if (user.getRating() >= 100) {
+                status = "Профессионал";
+            } else if (user.getRating() >= 50) {
+                status = "Опытный";
+            } else if (user.getRating() >= 10) {
+                status = "Активный";
+            } else {
+                status = "Новичок";
+            }
+            
+            statusTextView.setText(status);
             
             // Получаем все посты и подсчитываем количество постов текущего пользователя
             List<Post> allPosts = viewModel.getPosts();
@@ -119,7 +186,7 @@ public class ProfileFragment extends Fragment {
             postsTextView.setText(String.valueOf(userPostsCount));
             
             ratingTextView.setText(String.valueOf(user.getRating()));
-            statusCountTextView.setText(user.getStatus());
+            statusCountTextView.setText(String.valueOf(user.getRating())); // Показываем рейтинг вместо статуса
         }
     }
 
@@ -128,5 +195,131 @@ public class ProfileFragment extends Fragment {
             space.krokodilich.ctt.ViewModel viewModel = ((MainActivity) getActivity()).getViewModel();
             viewModel.clearUserId();
         }
+    }
+
+    private void openImagePicker() {
+        Intent intent = new Intent(Intent.ACTION_PICK, MediaStore.Images.Media.EXTERNAL_CONTENT_URI);
+        intent.setType("image/*");
+        startActivityForResult(intent, PICK_IMAGE_REQUEST);
+    }
+
+    @Override
+    public void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == PICK_IMAGE_REQUEST && resultCode == getActivity().RESULT_OK && data != null && data.getData() != null) {
+            Uri imageUri = data.getData();
+            uploadAvatarToServer(imageUri);
+        }
+    }
+
+    private void uploadAvatarToServer(Uri imageUri) {
+        if (getActivity() == null) return;
+
+        // Показываем индикатор загрузки
+        ProgressDialog progressDialog = new ProgressDialog(getContext());
+        progressDialog.setMessage("Загрузка аватара...");
+        progressDialog.setCancelable(false);
+        progressDialog.show();
+
+        String realPath = getRealPathFromUri(imageUri);
+        if (realPath == null) {
+            progressDialog.dismiss();
+            return;
+        }
+
+        File imageFile = new File(realPath);
+        if (!imageFile.exists()) {
+            progressDialog.dismiss();
+            return;
+        }
+
+        // Проверяем размер файла (максимум 10MB)
+        if (imageFile.length() > 10 * 1024 * 1024) {
+            progressDialog.dismiss();
+            return;
+        }
+
+        RequestBody requestFile = RequestBody.create(MediaType.parse("image/*"), imageFile);
+        MultipartBody.Part body = MultipartBody.Part.createFormData("file", imageFile.getName(), requestFile);
+
+        Long userId = viewModel.getCurrentUser().getId();
+        if (userId == null) {
+            progressDialog.dismiss();
+            return;
+        }
+
+        // Сразу обновляем локально
+        Glide.with(ProfileFragment.this)
+            .load(imageUri)
+            .placeholder(R.drawable.ic_default_avatar)
+            .error(R.drawable.ic_default_avatar)
+            .into(avatarImageView);
+
+        ApiService apiService = RetrofitClient.getInstance().getApiService();
+        apiService.uploadAvatar(userId, body).enqueue(new Callback<String>() {
+            @Override
+            public void onResponse(Call<String> call, Response<String> response) {
+                progressDialog.dismiss();
+                
+                if (getActivity() == null) return;
+
+                if (response.isSuccessful() && response.body() != null) {
+                    String avatarPath = response.body().trim();
+                    
+                    // Обновляем данные пользователя
+                    User currentUser = viewModel.getCurrentUser();
+                    if (currentUser != null) {
+                        currentUser.setAvatar(avatarPath);
+                        viewModel.updateCurrentUser(currentUser);
+
+                        // Загружаем новый аватар с сервера
+                        String avatarUrl = avatarPath;
+                        if (!avatarUrl.startsWith("http")) {
+                            if (avatarUrl.startsWith("/uploads/")) {
+                                avatarUrl = "https://spring-boot-production-6510.up.railway.app" + avatarUrl;
+                            } else {
+                                avatarUrl = "https://spring-boot-production-6510.up.railway.app/uploads/" + avatarUrl;
+                            }
+                        }
+
+                        Glide.with(ProfileFragment.this)
+                            .load(avatarUrl)
+                            .placeholder(R.drawable.ic_default_avatar)
+                            .error(R.drawable.ic_default_avatar)
+                            .into(avatarImageView);
+                    }
+                }
+            }
+
+            @Override
+            public void onFailure(Call<String> call, Throwable t) {
+                progressDialog.dismiss();
+            }
+        });
+    }
+
+    private String getFallbackAvatarUrl() {
+        String currentAvatar = viewModel.getCurrentUser().getAvatar();
+        if (currentAvatar != null && !currentAvatar.startsWith("http")) {
+            if (currentAvatar.startsWith("/uploads/")) {
+                currentAvatar = "https://spring-boot-production-6510.up.railway.app" + currentAvatar;
+            } else {
+                currentAvatar = "https://spring-boot-production-6510.up.railway.app/uploads/" + currentAvatar;
+            }
+        }
+        return currentAvatar;
+    }
+
+    private String getRealPathFromUri(Uri uri) {
+        String[] projection = {MediaStore.Images.Media.DATA};
+        android.database.Cursor cursor = requireContext().getContentResolver().query(uri, projection, null, null, null);
+        if (cursor != null) {
+            int columnIndex = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.DATA);
+            cursor.moveToFirst();
+            String path = cursor.getString(columnIndex);
+            cursor.close();
+            return path;
+        }
+        return null;
     }
 }

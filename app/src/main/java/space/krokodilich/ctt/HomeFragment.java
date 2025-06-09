@@ -27,6 +27,8 @@ public class HomeFragment extends Fragment {
     private Chip sortAscButton;
     private Chip sortDescButton;
     private List<Post> originalPosts;
+    private String selectedCity = "";
+    private String selectedTag = "";
 
     @Nullable
     @Override
@@ -40,7 +42,8 @@ public class HomeFragment extends Fragment {
 
         recyclerView = view.findViewById(R.id.posts_recycler_view);
         recyclerView.setLayoutManager(new LinearLayoutManager(getContext()));
-        postAdapter = new PostAdapter();
+        space.krokodilich.ctt.ViewModel viewModel = ((MainActivity) getActivity()).getViewModel();
+        postAdapter = new PostAdapter(requireContext(), new ArrayList<>(), viewModel, false);
         recyclerView.setAdapter(postAdapter);
 
         searchInput = view.findViewById(R.id.search_input);
@@ -55,7 +58,7 @@ public class HomeFragment extends Fragment {
     }
 
     private void setupFilters() {
-        List<String> tags = Arrays.asList("Все", "Достопримечательности", "Музеи", "Рестораны", "Отели", "Развлечения", "Пейзаж", "Двор");
+        List<String> tags = Arrays.asList("Все", "Достопримечательность", "Ресторан", "Кафе", "Парк", "Музей");
         List<String> cities = Arrays.asList("Все города", "Москва", "Санкт-Петербург", "Новосибирск", "Екатеринбург", "Казань", "Нижний Новгород", "Самара", "Челябинск", "Омск");
         
         // Добавляем фильтр по городам
@@ -72,8 +75,15 @@ public class HomeFragment extends Fragment {
             chip.setCheckable(true);
             chip.setOnCheckedChangeListener((buttonView, isChecked) -> {
                 if (isChecked) {
-                    String selectedTag = tag.equals("Все") ? "" : tag;
-                    postAdapter.filterPosts(searchInput.getText().toString(), selectedTag, "");
+                    // Сбрасываем выбор других тегов
+                    for (int i = 0; i < filterChipGroup.getChildCount(); i++) {
+                        Chip otherChip = (Chip) filterChipGroup.getChildAt(i);
+                        if (otherChip != chip && !otherChip.getText().equals("Город")) {
+                            otherChip.setChecked(false);
+                        }
+                    }
+                    selectedTag = tag.equals("Все") ? "" : tag;
+                    applyFilters();
                 }
             });
             filterChipGroup.addView(chip);
@@ -86,34 +96,20 @@ public class HomeFragment extends Fragment {
 
         final String[] cityArray = cities.toArray(new String[0]);
         builder.setItems(cityArray, (dialog, which) -> {
-            String selectedCity = cityArray[which];
-            if (selectedCity.equals("Все города")) {
-                selectedCity = "";
-            }
-            postAdapter.filterPosts(searchInput.getText().toString(), "", selectedCity);
+            selectedCity = cityArray[which].equals("Все города") ? "" : cityArray[which];
+            applyFilters();
         });
 
         builder.show();
     }
 
+    private void applyFilters() {
+        postAdapter.filterPosts(searchInput.getText().toString(), selectedTag, selectedCity);
+    }
+
     private void setupSearch() {
         searchInput.setOnEditorActionListener((v, actionId, event) -> {
-            String query = searchInput.getText().toString();
-            String selectedTag = "";
-            String selectedCity = "";
-            
-            for (int i = 0; i < filterChipGroup.getChildCount(); i++) {
-                Chip chip = (Chip) filterChipGroup.getChildAt(i);
-                if (chip.isChecked()) {
-                    selectedTag = chip.getText().toString();
-                    if (selectedTag.equals("Все")) {
-                        selectedTag = "";
-                    }
-                    break;
-                }
-            }
-            
-            postAdapter.filterPosts(query, selectedTag, selectedCity);
+            applyFilters();
             return true;
         });
     }
