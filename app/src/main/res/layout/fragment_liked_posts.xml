@@ -1,15 +1,23 @@
 <?xml version="1.0" encoding="utf-8"?>
 <androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_height="match_parent"
+    android:background="@android:color/transparent">
 
     <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/liked_posts_recycler_view"
+        android:id="@+id/liked_posts_recyclerview"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:clipToPadding="false"
-        android:padding="8dp" />
+        android:padding="8dp"
+        android:overScrollMode="never"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        tools:listitem="@layout/item_post_liked" />
 
     <ProgressBar
         android:id="@+id/loading_indicator"
@@ -25,8 +33,9 @@
         android:id="@+id/no_posts_message"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="У вас пока нет понравившихся постов"
-        android:textSize="16sp"
+        android:text="Нет понравившихся постов"
+        android:textColor="@color/white"
+        android:textSize="18sp"
         android:visibility="gone"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"

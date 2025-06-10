@@ -20,6 +20,11 @@ import java.util.Collections;
 import java.util.List;
 
 public class HomeFragment extends Fragment {
+    private static final String KEY_SELECTED_CITY = "selected_city";
+    private static final String KEY_SELECTED_TAG = "selected_tag";
+    private static final String KEY_SEARCH_QUERY = "search_query";
+    private static final String KEY_SORT_ASCENDING = "sort_ascending";
+
     private RecyclerView recyclerView;
     private PostAdapter postAdapter;
     private EditText searchInput;
@@ -29,6 +34,28 @@ public class HomeFragment extends Fragment {
     private List<Post> originalPosts;
     private String selectedCity = "";
     private String selectedTag = "";
+    private String searchQuery = "";
+    private boolean sortAscending = false;
+
+    @Override
+    public void onCreate(@Nullable Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        if (savedInstanceState != null) {
+            selectedCity = savedInstanceState.getString(KEY_SELECTED_CITY, "");
+            selectedTag = savedInstanceState.getString(KEY_SELECTED_TAG, "");
+            searchQuery = savedInstanceState.getString(KEY_SEARCH_QUERY, "");
+            sortAscending = savedInstanceState.getBoolean(KEY_SORT_ASCENDING, false);
+        }
+    }
+
+    @Override
+    public void onSaveInstanceState(@NonNull Bundle outState) {
+        super.onSaveInstanceState(outState);
+        outState.putString(KEY_SELECTED_CITY, selectedCity);
+        outState.putString(KEY_SELECTED_TAG, selectedTag);
+        outState.putString(KEY_SEARCH_QUERY, searchInput != null ? searchInput.getText().toString() : searchQuery);
+        outState.putBoolean(KEY_SORT_ASCENDING, sortAscButton != null ? sortAscButton.isChecked() : sortAscending);
+    }
 
     @Nullable
     @Override
@@ -39,6 +66,19 @@ public class HomeFragment extends Fragment {
     @Override
     public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
+
+        // Проверяем аутентификацию пользователя
+        if (getActivity() instanceof MainActivity) {
+            MainActivity mainActivity = (MainActivity) getActivity();
+            space.krokodilich.ctt.ViewModel viewModel = mainActivity.getViewModel();
+            User currentUser = viewModel.getCurrentUser();
+            
+            if (currentUser == null) {
+                // Пользователь не авторизован, перенаправляем на экран входа
+                mainActivity.showAuthFragmentAndHideBottomNav();
+                return;
+            }
+        }
 
         recyclerView = view.findViewById(R.id.posts_recycler_view);
         recyclerView.setLayoutManager(new LinearLayoutManager(getContext()));
@@ -55,6 +95,18 @@ public class HomeFragment extends Fragment {
         loadPosts();
         setupSearch();
         setupSorting();
+
+        // Восстанавливаем состояние фильтров
+        if (!searchQuery.isEmpty()) {
+            searchInput.setText(searchQuery);
+        }
+        if (sortAscending) {
+            sortAscButton.setChecked(true);
+            sortDescButton.setChecked(false);
+        } else {
+            sortAscButton.setChecked(false);
+            sortDescButton.setChecked(true);
+        }
     }
 
     private void setupFilters() {
@@ -65,6 +117,9 @@ public class HomeFragment extends Fragment {
         Chip cityFilterChip = new Chip(requireContext());
         cityFilterChip.setText("Город");
         cityFilterChip.setCheckable(true);
+        if (!selectedCity.isEmpty()) {
+            cityFilterChip.setText("Город: " + selectedCity);
+        }
         cityFilterChip.setOnClickListener(v -> showCityFilterDialog(cities));
         filterChipGroup.addView(cityFilterChip);
         
@@ -73,6 +128,9 @@ public class HomeFragment extends Fragment {
             Chip chip = new Chip(requireContext());
             chip.setText(tag);
             chip.setCheckable(true);
+            if (tag.equals(selectedTag) || (selectedTag.isEmpty() && tag.equals("Все"))) {
+                chip.setChecked(true);
+            }
             chip.setOnCheckedChangeListener((buttonView, isChecked) -> {
                 if (isChecked) {
                     // Сбрасываем выбор других тегов
@@ -97,6 +155,8 @@ public class HomeFragment extends Fragment {
         final String[] cityArray = cities.toArray(new String[0]);
         builder.setItems(cityArray, (dialog, which) -> {
             selectedCity = cityArray[which].equals("Все города") ? "" : cityArray[which];
+            Chip cityChip = (Chip) filterChipGroup.getChildAt(0);
+            cityChip.setText(selectedCity.isEmpty() ? "Город" : "Город: " + selectedCity);
             applyFilters();
         });
 
@@ -104,11 +164,13 @@ public class HomeFragment extends Fragment {
     }
 
     private void applyFilters() {
-        postAdapter.filterPosts(searchInput.getText().toString(), selectedTag, selectedCity);
+        String currentQuery = searchInput != null ? searchInput.getText().toString() : searchQuery;
+        postAdapter.filterPosts(currentQuery, selectedTag, selectedCity);
     }
 
     private void setupSearch() {
         searchInput.setOnEditorActionListener((v, actionId, event) -> {
+            searchQuery = searchInput.getText().toString();
             applyFilters();
             return true;
         });
@@ -118,12 +180,14 @@ public class HomeFragment extends Fragment {
         sortAscButton.setOnClickListener(v -> {
             sortAscButton.setChecked(true);
             sortDescButton.setChecked(false);
+            sortAscending = true;
             sortPosts(true);
         });
 
         sortDescButton.setOnClickListener(v -> {
             sortDescButton.setChecked(true);
             sortAscButton.setChecked(false);
+            sortAscending = false;
             sortPosts(false);
         });
     }
@@ -150,6 +214,13 @@ public class HomeFragment extends Fragment {
                     if (posts != null) {
                         originalPosts = posts;
                         postAdapter.setPosts(posts);
+                        // Применяем сохраненные фильтры после загрузки постов
+                        applyFilters();
+                        if (sortAscending) {
+                            sortPosts(true);
+                        } else {
+                            sortPosts(false);
+                        }
                     }
                 }
 

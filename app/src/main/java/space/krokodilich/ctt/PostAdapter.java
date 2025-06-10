@@ -16,7 +16,9 @@ import androidx.appcompat.app.AlertDialog;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import com.bumptech.glide.Glide;
+import com.bumptech.glide.load.resource.drawable.DrawableTransitionOptions;
 import com.google.android.material.button.MaterialButton;
+import com.google.android.material.imageview.ShapeableImageView;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -45,8 +47,9 @@ public class PostAdapter extends RecyclerView.Adapter<PostAdapter.PostViewHolder
     @NonNull
     @Override
     public PostViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+        int layoutId = isUserPosts ? R.layout.item_post_profile : R.layout.item_post;
         View view = LayoutInflater.from(parent.getContext())
-                .inflate(R.layout.item_post, parent, false);
+                .inflate(layoutId, parent, false);
         return new PostViewHolder(view);
     }
 
@@ -102,6 +105,7 @@ public class PostAdapter extends RecyclerView.Adapter<PostAdapter.PostViewHolder
         private final MaterialButton downvoteButton;
         private final RatingPreferences ratingPreferences;
         private final ImageButton deletePostButton;
+        private final ShapeableImageView authorAvatar;
 
         public PostViewHolder(@NonNull View itemView) {
             super(itemView);
@@ -116,11 +120,22 @@ public class PostAdapter extends RecyclerView.Adapter<PostAdapter.PostViewHolder
             upvoteButton = itemView.findViewById(R.id.upvote_button);
             downvoteButton = itemView.findViewById(R.id.downvote_button);
             deletePostButton = itemView.findViewById(R.id.delete_post_button);
+            authorAvatar = itemView.findViewById(R.id.author_avatar);
             ratingPreferences = new RatingPreferences(context);
 
             imageAdapter = new PostImageAdapter(new ArrayList<>());
             imageRecyclerView.setAdapter(imageAdapter);
             imageRecyclerView.setLayoutManager(new LinearLayoutManager(context, LinearLayoutManager.HORIZONTAL, false));
+
+            // Добавляем обработчик нажатия на изображение
+            imageAdapter.setOnImageClickListener((imageUrl, position) -> {
+                if (context instanceof MainActivity) {
+                    Post post = posts.get(getAdapterPosition());
+                    ((MainActivity) context).loadFragment(
+                        FullscreenImageFragment.newInstance(post.getImagesList(), position)
+                    );
+                }
+            });
         }
 
         public void bind(Post post) {
@@ -131,6 +146,32 @@ public class PostAdapter extends RecyclerView.Adapter<PostAdapter.PostViewHolder
             dateTextView.setText(post.getTime());
             cityTextView.setText(post.getLocation());
             tagTextView.setText(post.getPlaceTag());
+
+            // Устанавливаем аватар по умолчанию
+            authorAvatar.setImageResource(R.drawable.default_avatar);
+
+            // Загружаем аватар автора асинхронно
+            Log.d(TAG, "Loading avatar for user: " + post.getLogin());
+            viewModel.getUserAvatarUrl(post.getLogin(), avatarUrl -> {
+                if (avatarUrl != null && !avatarUrl.isEmpty()) {
+                    Log.d(TAG, "Loading avatar from URL: " + avatarUrl);
+                    Glide.with(context)
+                        .load(avatarUrl)
+                        .transition(DrawableTransitionOptions.withCrossFade())
+                        .placeholder(R.drawable.default_avatar)
+                        .error(R.drawable.default_avatar)
+                        .into(authorAvatar);
+                } else {
+                    Log.d(TAG, "No avatar URL for user: " + post.getLogin() + ", using default");
+                }
+            });
+
+            // Добавляем обработчик нажатия на аватар
+            authorAvatar.setOnClickListener(v -> {
+                if (context instanceof MainActivity) {
+                    ((MainActivity) context).navigateToUserProfile(post.getLogin());
+                }
+            });
 
             // Показываем кнопку удаления только в разделе "Мои посты"
             String currentUserLogin = viewModel.getCurrentUser() != null ? viewModel.getCurrentUser().getUsername() : null;
@@ -144,16 +185,27 @@ public class PostAdapter extends RecyclerView.Adapter<PostAdapter.PostViewHolder
                             viewModel.deletePost(post.getId(), new ViewModel.OnNetworkCallback() {
                                 @Override
                                 public void onSuccess() {
+                                    Log.d(TAG, "Post deleted successfully, updating UI");
                                     int position = getAdapterPosition();
-                                    if (position != RecyclerView.NO_POSITION) {
+                                    if (position != RecyclerView.NO_POSITION && position < posts.size()) {
+                                        // Удаляем пост из списка
                                         posts.remove(position);
+                                        
+                                        // Обновляем адаптер
                                         notifyItemRemoved(position);
                                         notifyItemRangeChanged(position, posts.size());
+                                        
+                                        Log.d(TAG, "Post removed from adapter at position: " + position);
+                                    } else {
+                                        Log.w(TAG, "Invalid position for removal: " + position + ", posts size: " + posts.size());
+                                        // Если позиция недействительна, обновляем весь список
+                                        notifyDataSetChanged();
                                     }
                                 }
 
                                 @Override
                                 public void onError(String error) {
+                                    Log.e(TAG, "Error deleting post: " + error);
                                     if (context != null) {
                                         Toast.makeText(context, "Ошибка при удалении поста: " + error, Toast.LENGTH_SHORT).show();
                                     }

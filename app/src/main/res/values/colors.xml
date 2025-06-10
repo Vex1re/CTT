@@ -6,8 +6,27 @@
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
     <color name="gray">#757575</color>
+    <color name="unread_notification_background">#F5F5F5</color>
     <color name="upvote_active">#FF4CAF50</color>
     <color name="upvote_inactive">#FFBDBDBD</color>
     <color name="downvote_active">#FFF44336</color>
     <color name="downvote_inactive">#FFBDBDBD</color>
+    
+    <!-- Цвета для уведомлений -->
+    <color name="blue_500">#2196F3</color>
+    <color name="green_500">#4CAF50</color>
+    <color name="red_500">#F44336</color>
+    <color name="orange_500">#FF9800</color>
+    <color name="gray_500">#9E9E9E</color>
+    <color name="gray_700">#616161</color>
+    
+    <!-- Дополнительные цвета для аутентификации -->
+    <color name="gray_300">#E0E0E0</color>
+    <color name="gray_600">#757575</color>
+    <color name="gray_800">#424242</color>
+    <color name="gray_900">#212121</color>
+    
+    <!-- Градиентные цвета для фона аутентификации -->
+    <color name="gradient_start">#667eea</color>
+    <color name="gradient_end">#764ba2</color>
 </resources>

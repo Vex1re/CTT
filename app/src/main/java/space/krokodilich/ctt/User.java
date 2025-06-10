@@ -36,6 +36,10 @@ public class User {
     @SerializedName("avatar")
     private String avatar;
 
+    public User() {
+        // пустой конструктор для использования в ViewModel и Gson
+    }
+
     public User(String username, String name, String surname, String email, String city, String password) {
         this.username = username;
         this.name = name;
@@ -134,6 +138,19 @@ public class User {
 
     public void setAvatar(String avatar) {
         this.avatar = avatar;
+    }
+
+    public String getAvatarUrl() {
+        if (avatar == null || avatar.isEmpty()) {
+            return null;
+        }
+        if (avatar.startsWith("http")) {
+            return avatar;
+        }
+        if (avatar.startsWith("/uploads/")) {
+            return "https://spring-boot-production-6510.up.railway.app" + avatar;
+        }
+        return "https://spring-boot-production-6510.up.railway.app/uploads/" + avatar;
     }
 
     @Override

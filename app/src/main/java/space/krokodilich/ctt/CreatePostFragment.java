@@ -91,8 +91,21 @@ public class CreatePostFragment extends Fragment implements ImageAdapter.OnImage
     public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
 
+        // Проверяем аутентификацию пользователя
+        if (getActivity() instanceof MainActivity) {
+            MainActivity mainActivity = (MainActivity) getActivity();
+            viewModel = mainActivity.getViewModel();
+            User currentUser = viewModel.getCurrentUser();
+            
+            if (currentUser == null) {
+                // Пользователь не авторизован, перенаправляем на экран входа
+                mainActivity.showAuthFragmentAndHideBottomNav();
+                return;
+            }
+        } else {
         if (getActivity() instanceof MainActivity) {
             viewModel = ((MainActivity) getActivity()).getViewModel();
+            }
         }
 
         placeNameInput = view.findViewById(R.id.place_name_input);
@@ -144,13 +157,19 @@ public class CreatePostFragment extends Fragment implements ImageAdapter.OnImage
             new ActivityResultContracts.GetMultipleContents(),
             uris -> {
                 if (uris != null && !uris.isEmpty()) {
+                    Log.d("CreatePostFragment", "Selected " + uris.size() + " images from gallery");
                     // Ограничиваем количество изображений
                     int remainingSlots = MAX_IMAGES - selectedImageUris.size();
                     if (remainingSlots > 0) {
                         List<Uri> newUris = uris.subList(0, Math.min(remainingSlots, uris.size()));
                         selectedImageUris.addAll(newUris);
+                        Log.d("CreatePostFragment", "Added " + newUris.size() + " images. Total: " + selectedImageUris.size());
                         updateImagesUI();
+                    } else {
+                        Log.d("CreatePostFragment", "No remaining slots for images");
                     }
+                } else {
+                    Log.d("CreatePostFragment", "No images selected");
                 }
             }
         );
@@ -201,6 +220,7 @@ public class CreatePostFragment extends Fragment implements ImageAdapter.OnImage
     }
 
     private void updateImagesUI() {
+        Log.d("CreatePostFragment", "Updating images UI. Selected images: " + selectedImageUris.size());
         if (selectedImageUris.isEmpty()) {
             imagesRecyclerView.setVisibility(View.GONE);
             addedImagesContainer.setVisibility(View.GONE);
@@ -215,6 +235,7 @@ public class CreatePostFragment extends Fragment implements ImageAdapter.OnImage
 
     @Override
     public void onImageRemove(int position) {
+        Log.d("CreatePostFragment", "Removing image at position: " + position);
         selectedImageUris.remove(position);
         updateImagesUI();
     }
@@ -234,6 +255,11 @@ public class CreatePostFragment extends Fragment implements ImageAdapter.OnImage
         if (selectedImageUris.isEmpty()) {
             Toast.makeText(getContext(), "Добавьте хотя бы одну фотографию", Toast.LENGTH_SHORT).show();
             return;
+        }
+
+        Log.d("CreatePostFragment", "Creating post with " + selectedImageUris.size() + " images");
+        for (int i = 0; i < selectedImageUris.size(); i++) {
+            Log.d("CreatePostFragment", "Image " + (i + 1) + ": " + selectedImageUris.get(i));
         }
 
         if (viewModel != null && viewModel.getCurrentUser() != null) {
@@ -281,9 +307,24 @@ public class CreatePostFragment extends Fragment implements ImageAdapter.OnImage
                                     getActivity().runOnUiThread(() -> {
                                         publishButton.setEnabled(true);
                                         publishButton.setText("Опубликовать");
-                                        if (getActivity() instanceof MainActivity) {
-                                            ((MainActivity) getActivity()).loadFragment(new ProfileFragment());
-                                        }
+                                        
+                                        // Обновляем список постов перед переходом на профиль
+                                        viewModel.getPosts(new ViewModel.OnNetworkCallback() {
+                                            @Override
+                                            public void onSuccess() {
+                                                if (getActivity() instanceof MainActivity) {
+                                                    ((MainActivity) getActivity()).loadFragment(new ProfileFragment());
+                                                }
+                                            }
+
+                                            @Override
+                                            public void onError(String error) {
+                                                // Даже если обновление не удалось, переходим на профиль
+                                                if (getActivity() instanceof MainActivity) {
+                                                    ((MainActivity) getActivity()).loadFragment(new ProfileFragment());
+                                                }
+                                            }
+                                        });
                                     });
                                 }
 

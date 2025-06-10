@@ -11,7 +11,6 @@ import java.util.ArrayList;
 import okhttp3.OkHttpClient;
 import retrofit2.Retrofit;
 import retrofit2.converter.gson.GsonConverterFactory;
-import okhttp3.logging.HttpLoggingInterceptor;
 import okhttp3.MediaType;
 import okhttp3.RequestBody;
 import okhttp3.Request;
@@ -39,18 +38,6 @@ public class AppViewModel extends ViewModel {
         chatService = RetrofitClient.getClient().create(ChatService.class);
         apiService = RetrofitClient.getClient().create(ApiService.class);
         Log.d(TAG, "ViewModel initialized");
-        
-        OkHttpClient client = new OkHttpClient.Builder()
-            .addInterceptor(new HttpLoggingInterceptor().setLevel(HttpLoggingInterceptor.Level.BODY))
-            .build();
-
-        Retrofit retrofit = new Retrofit.Builder()
-            .baseUrl(BASE_URL)
-            .client(client)
-            .addConverterFactory(GsonConverterFactory.create())
-            .build();
-
-        apiService = retrofit.create(ApiService.class);
     }
 
     public void setCallback(OnNetworkCallback callback) {
@@ -485,40 +472,151 @@ public class AppViewModel extends ViewModel {
     }
 
     public void uploadImages(Long postId, List<String> imageUris, OnNetworkCallback callback) {
-        this.callback = callback;
-        List<MultipartBody.Part> imageParts = new ArrayList<>();
+        if (imageUris == null || imageUris.isEmpty()) {
+            Log.d(TAG, "No images to upload");
+            callback.onSuccess();
+            return;
+        }
+
+        Log.d(TAG, "Starting upload of " + imageUris.size() + " images for post " + postId);
         
-        for (String imageUri : imageUris) {
+        List<MultipartBody.Part> imageParts = new ArrayList<>();
+        long totalSize = 0;
+        final long MAX_REQUEST_SIZE = 8 * 1024 * 1024; // 8MB limit to stay under 10MB server limit
+        final int MAX_IMAGES_PER_BATCH = 3; // Maximum images per batch
+        
+        for (int i = 0; i < imageUris.size(); i++) {
+            String imageUri = imageUris.get(i);
             try {
+                Log.d(TAG, "Processing image " + (i + 1) + "/" + imageUris.size() + ": " + imageUri);
+                
                 File imageFile = new File(Uri.parse(imageUri).getPath());
-                RequestBody requestFile = RequestBody.create(MediaType.parse("image/*"), imageFile);
-                MultipartBody.Part body = MultipartBody.Part.createFormData("files", imageFile.getName(), requestFile);
+                if (!imageFile.exists()) {
+                    Log.e(TAG, "File does not exist: " + imageUri);
+                    continue;
+                }
+                
+                // Compress image if it's too large
+                File compressedFile = compressImageIfNeeded(imageFile);
+                long fileSize = compressedFile.length();
+                Log.d(TAG, "File size: " + fileSize + " bytes (" + (fileSize / 1024 / 1024) + " MB)");
+                
+                if (fileSize > 10 * 1024 * 1024) {
+                    Log.e(TAG, "File too large even after compression: " + imageUri + ", size: " + fileSize);
+                    continue;
+                }
+                
+                Log.d(TAG, "Preparing file for upload: " + compressedFile.getAbsolutePath() + ", size: " + fileSize);
+                RequestBody requestFile = RequestBody.create(MediaType.parse("image/*"), compressedFile);
+                MultipartBody.Part body = MultipartBody.Part.createFormData("files", compressedFile.getName(), requestFile);
                 imageParts.add(body);
+                totalSize += fileSize;
+                Log.d(TAG, "Successfully added file to upload list: " + compressedFile.getName());
+                
+                // Check if we need to start a new batch
+                if (imageParts.size() >= MAX_IMAGES_PER_BATCH || totalSize > MAX_REQUEST_SIZE) {
+                    Log.d(TAG, "Batch limit reached. Uploading batch of " + imageParts.size() + " images (total size: " + (totalSize / 1024 / 1024) + " MB)");
+                    uploadImageBatch(postId, new ArrayList<>(imageParts), callback);
+                    imageParts.clear();
+                    totalSize = 0;
+                }
             } catch (Exception e) {
-                Log.e(TAG, "Error preparing image for upload: " + e.getMessage());
+                Log.e(TAG, "Error preparing image for upload: " + imageUri, e);
             }
         }
 
+        // Upload remaining images
         if (!imageParts.isEmpty()) {
-            apiService.uploadImages(postId, imageParts).enqueue(new Callback<Post>() {
-                @Override
-                public void onResponse(Call<Post> call, Response<Post> response) {
-                    if (response.isSuccessful() && response.body() != null) {
-                        callback.onSuccess();
-                    } else {
-                        callback.onError("Ошибка загрузки изображений: " + response.message());
+            Log.d(TAG, "Uploading final batch of " + imageParts.size() + " images (total size: " + (totalSize / 1024 / 1024) + " MB)");
+            uploadImageBatch(postId, imageParts, callback);
+        } else if (imageUris.size() > 0) {
+            Log.d(TAG, "No valid images to upload");
+            callback.onError("Не удалось подготовить изображения для загрузки");
+        }
+    }
+    
+    private void uploadImageBatch(Long postId, List<MultipartBody.Part> imageParts, OnNetworkCallback callback) {
+        Log.d(TAG, "Uploading batch of " + imageParts.size() + " images for post " + postId);
+        apiService.uploadImages(postId, imageParts).enqueue(new Callback<Post>() {
+            @Override
+            public void onResponse(Call<Post> call, Response<Post> response) {
+                Log.d(TAG, "Upload response received. Code: " + response.code());
+                if (response.isSuccessful() && response.body() != null) {
+                    Post updatedPost = response.body();
+                    Log.d(TAG, "Images uploaded successfully. Updated post images: " + updatedPost.getImagesList());
+                    callback.onSuccess();
+                } else {
+                    String errorMessage = "Ошибка загрузки изображений: код " + response.code();
+                    try {
+                        if (response.errorBody() != null) {
+                            String errorBody = response.errorBody().string();
+                            errorMessage += ", ответ: " + errorBody;
+                            Log.e(TAG, "Server error response: " + errorBody);
+                        }
+                    } catch (IOException e) {
+                        Log.e(TAG, "Error reading error body", e);
                     }
+                    
+                    if (response.code() == 413) {
+                        errorMessage = "Размер изображений слишком большой. Попробуйте загрузить меньше изображений или изображения меньшего размера.";
+                    }
+                    
+                    Log.e(TAG, errorMessage);
+                    callback.onError(errorMessage);
                 }
-
-                @Override
-                public void onFailure(Call<Post> call, Throwable t) {
-                    callback.onError("Ошибка сети: " + t.getMessage());
-                }
-            });
-        } else {
-            if (callback != null) {
-                callback.onSuccess();
             }
+
+            @Override
+            public void onFailure(Call<Post> call, Throwable t) {
+                Log.e(TAG, "Network error while uploading images", t);
+                callback.onError("Ошибка сети: " + t.getMessage());
+            }
+        });
+    }
+    
+    private File compressImageIfNeeded(File originalFile) throws IOException {
+        long originalSize = originalFile.length();
+        long maxSize = 2 * 1024 * 1024; // 2MB target size
+        
+        if (originalSize <= maxSize) {
+            return originalFile;
+        }
+        
+        Log.d(TAG, "Compressing image from " + (originalSize / 1024 / 1024) + " MB to target 2MB");
+        
+        // Create compressed file
+        File compressedFile = File.createTempFile("compressed_", ".jpg", context.getCacheDir());
+        
+        try {
+            android.graphics.Bitmap bitmap = android.graphics.BitmapFactory.decodeFile(originalFile.getAbsolutePath());
+            if (bitmap == null) {
+                Log.e(TAG, "Could not decode bitmap from file: " + originalFile.getAbsolutePath());
+                return originalFile;
+            }
+            
+            // Calculate compression quality
+            int quality = 90;
+            long currentSize = originalSize;
+            
+            while (currentSize > maxSize && quality > 10) {
+                quality -= 10;
+                java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
+                bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, quality, baos);
+                currentSize = baos.size();
+                Log.d(TAG, "Compression attempt: quality=" + quality + ", size=" + (currentSize / 1024 / 1024) + " MB");
+            }
+            
+            // Write compressed image to file
+            java.io.FileOutputStream fos = new java.io.FileOutputStream(compressedFile);
+            bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, quality, fos);
+            fos.close();
+            
+            Log.d(TAG, "Image compressed successfully: " + (compressedFile.length() / 1024 / 1024) + " MB");
+            return compressedFile;
+            
+        } catch (Exception e) {
+            Log.e(TAG, "Error compressing image", e);
+            return originalFile;
         }
     }
 

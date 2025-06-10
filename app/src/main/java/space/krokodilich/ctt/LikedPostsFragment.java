@@ -15,13 +15,14 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 import android.util.Log;
+import space.krokodilich.ctt.LikedPostAdapter;
 
 public class LikedPostsFragment extends Fragment {
     private static final String TAG = "LikedPostsFragment";
     private RecyclerView likedPostsRecyclerView;
     private ProgressBar loadingIndicator;
     private TextView noPostsMessage;
-    private PostAdapter postAdapter;
+    private LikedPostAdapter postAdapter;
     private ViewModel viewModel;
 
     @Nullable
@@ -38,12 +39,12 @@ public class LikedPostsFragment extends Fragment {
             viewModel = ((MainActivity) getActivity()).getViewModel();
         }
 
-        likedPostsRecyclerView = view.findViewById(R.id.liked_posts_recycler_view);
+        likedPostsRecyclerView = view.findViewById(R.id.liked_posts_recyclerview);
         loadingIndicator = view.findViewById(R.id.loading_indicator);
         noPostsMessage = view.findViewById(R.id.no_posts_message);
 
         likedPostsRecyclerView.setLayoutManager(new LinearLayoutManager(getContext()));
-        postAdapter = new PostAdapter(requireContext(), new ArrayList<>(), viewModel, false);
+        postAdapter = new LikedPostAdapter(requireContext(), new ArrayList<>(), viewModel);
         likedPostsRecyclerView.setAdapter(postAdapter);
 
         loadLikedPosts();
@@ -56,26 +57,32 @@ public class LikedPostsFragment extends Fragment {
                 @Override
                 public void onSuccess() {
                     List<Post> allPosts = viewModel.getPosts();
-                    if (allPosts != null) {
-                    // Фильтруем посты, которые пользователь лайкнул
-                    List<Post> likedPosts = allPosts.stream()
-                            .filter(post -> {
-                                String userLogin = viewModel.getCurrentUser() != null ? 
-                                    viewModel.getCurrentUser().getUsername() : null;
-                                return userLogin != null && post.hasUserLiked(userLogin);
-                            })
-                        .collect(Collectors.toList());
+                    if (allPosts != null && !allPosts.isEmpty()) {
+                        // Фильтруем посты, которые пользователь лайкнул
+                        List<Post> likedPosts = new ArrayList<>();
+                        String userLogin = viewModel.getCurrentUser() != null ? 
+                            viewModel.getCurrentUser().getUsername() : null;
+                        
+                        for (Post post : allPosts) {
+                            if (userLogin != null && post.hasUserLiked(userLogin)) {
+                                likedPosts.add(post);
+                            }
+                        }
 
                         Log.d(TAG, "Found " + likedPosts.size() + " liked posts");
 
-                    if (likedPosts.isEmpty()) {
+                        if (likedPosts.isEmpty()) {
+                            noPostsMessage.setVisibility(View.VISIBLE);
+                            likedPostsRecyclerView.setVisibility(View.GONE);
+                        } else {
+                            noPostsMessage.setVisibility(View.GONE);
+                            likedPostsRecyclerView.setVisibility(View.VISIBLE);
+                            postAdapter.setPosts(likedPosts);
+                        }
+                    } else {
+                        Log.d(TAG, "No posts available");
                         noPostsMessage.setVisibility(View.VISIBLE);
                         likedPostsRecyclerView.setVisibility(View.GONE);
-                    } else {
-                        noPostsMessage.setVisibility(View.GONE);
-                        likedPostsRecyclerView.setVisibility(View.VISIBLE);
-                        postAdapter.setPosts(likedPosts);
-                        }
                     }
                     loadingIndicator.setVisibility(View.GONE);
                 }

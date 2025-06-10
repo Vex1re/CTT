@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">My Application</string>
+    <string name="app_name">TravelSocial</string>
     <string name="title_home">Домой</string>
     <string name="title_notifications">Уведомления</string>
     <string name="title_profile">Профиль</string>

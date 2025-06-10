@@ -21,6 +21,12 @@ public interface ApiService {
     @GET("users/{id}")
     Call<User> getUser(@Path("id") String id);
 
+    @GET("users/login/{login}")
+    Call<User> getUserProfile(@Path("login") String login);
+
+    @GET("users/all")
+    Call<List<User>> getAllUsers();
+
     @POST("users")
     Call<User> createUser(@Body User user);
 

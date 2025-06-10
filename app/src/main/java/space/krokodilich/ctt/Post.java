@@ -215,7 +215,14 @@ public class Post {
         try {
             Gson gson = new Gson();
             Type listType = new TypeToken<List<String>>(){}.getType();
-            return gson.fromJson(likes, listType);
+            List<String> result = gson.fromJson(likes, listType);
+            if (result == null) return new ArrayList<>();
+            // фильтруем только строки с хотя бы одним ':'
+            List<String> filtered = new ArrayList<>();
+            for (String s : result) {
+                if (s != null && s.contains(":")) filtered.add(s);
+            }
+            return filtered;
         } catch (Exception e) {
             Log.e(TAG, "Error parsing likes JSON: " + likes, e);
             return new ArrayList<>();
@@ -235,7 +242,7 @@ public class Post {
         List<String> reactions = getLikesList();
         for (String reaction : reactions) {
             String[] parts = reaction.split(":");
-            if (parts.length == 2 && parts[0].equals(userLogin)) {
+            if (parts.length >= 2 && parts[0].equals(userLogin)) {
                 return parts[1].equals("true");
             }
         }
@@ -246,7 +253,7 @@ public class Post {
         List<String> reactions = getLikesList();
         for (String reaction : reactions) {
             String[] parts = reaction.split(":");
-            if (parts.length == 2 && parts[0].equals(userLogin)) {
+            if (parts.length >= 2 && parts[0].equals(userLogin)) {
                 return parts[1].equals("false");
             }
         }
@@ -257,8 +264,9 @@ public class Post {
         List<String> reactions = getLikesList();
         // Удаляем предыдущую реакцию пользователя, если она есть
         reactions.removeIf(reaction -> reaction.startsWith(userLogin + ":"));
-        // Добавляем новую реакцию
-        reactions.add(userLogin + ":" + isPositive);
+        // Добавляем новую реакцию с текущим временем
+        String timestamp = String.valueOf(System.currentTimeMillis());
+        reactions.add(userLogin + ":" + isPositive + ":" + timestamp);
         setLikesList(reactions);
     }
 
@@ -278,7 +286,23 @@ public class Post {
         return reactions.stream()
                 .filter(reaction -> reaction.startsWith(userLogin + ":"))
                 .findFirst()
-                .map(reaction -> reaction.endsWith(":true"))
+                .map(reaction -> reaction.split(":").length >= 2 && reaction.split(":")[1].equals("true"))
                 .orElse(false);
+    }
+
+    // Новый метод для получения времени реакции пользователя
+    public long getUserReactionTimestamp(String userLogin) {
+        List<String> reactions = getLikesList();
+        for (String reaction : reactions) {
+            String[] parts = reaction.split(":");
+            if (parts.length >= 3 && parts[0].equals(userLogin)) {
+                try {
+                    return Long.parseLong(parts[2]);
+                } catch (NumberFormatException e) {
+                    return System.currentTimeMillis(); // Fallback если время не парсится
+                }
+            }
+        }
+        return System.currentTimeMillis(); // Fallback если реакция не найдена
     }
 }

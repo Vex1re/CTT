@@ -17,11 +17,29 @@ import java.util.stream.Collectors;
 
 public class UserPostsFragment extends Fragment implements ViewModel.OnNetworkCallback {
 
+    private static final String ARG_USER_LOGIN = "user_login";
+    private String userLogin;
     private RecyclerView userPostsRecyclerView;
     private ProgressBar loadingIndicator;
     private TextView noPostsMessage;
     private PostAdapter postAdapter;
     private ViewModel viewModel;
+
+    public static UserPostsFragment newInstance(String login) {
+        UserPostsFragment fragment = new UserPostsFragment();
+        Bundle args = new Bundle();
+        args.putString(ARG_USER_LOGIN, login);
+        fragment.setArguments(args);
+        return fragment;
+    }
+
+    @Override
+    public void onCreate(@Nullable Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        if (getArguments() != null) {
+            userLogin = getArguments().getString(ARG_USER_LOGIN);
+        }
+    }
 
     @Nullable
     @Override
@@ -42,10 +60,44 @@ public class UserPostsFragment extends Fragment implements ViewModel.OnNetworkCa
         noPostsMessage = view.findViewById(R.id.no_posts_message);
 
         userPostsRecyclerView.setLayoutManager(new LinearLayoutManager(getContext()));
-        postAdapter = new PostAdapter(requireContext(), new ArrayList<>(), viewModel, true);
+        
+        // Фильтруем посты только текущего пользователя
+        List<Post> userPosts = new ArrayList<>();
+        if (viewModel != null && viewModel.getPosts() != null) {
+            userPosts = viewModel.getPosts().stream()
+                .filter(post -> userLogin.equals(post.getLogin()))
+                .collect(Collectors.toList());
+        }
+
+        // Создаем адаптер с isUserPosts = true только если это посты текущего пользователя
+        boolean isCurrentUser = viewModel.getCurrentUser() != null && 
+                               viewModel.getCurrentUser().getUsername().equals(userLogin);
+        postAdapter = new PostAdapter(getContext(), userPosts, viewModel, isCurrentUser);
         userPostsRecyclerView.setAdapter(postAdapter);
 
         loadUserPosts();
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        // Обновляем список постов при возвращении на экран
+        if (viewModel != null && viewModel.getPosts() != null) {
+            List<Post> userPosts = viewModel.getPosts().stream()
+                .filter(post -> userLogin.equals(post.getLogin()))
+                .collect(Collectors.toList());
+            
+            // Обновляем существующий адаптер вместо создания нового
+            if (postAdapter != null) {
+                postAdapter.setPosts(userPosts);
+            } else {
+                // Создаем новый адаптер только если его нет
+                boolean isCurrentUser = viewModel.getCurrentUser() != null && 
+                                       viewModel.getCurrentUser().getUsername().equals(userLogin);
+                postAdapter = new PostAdapter(getContext(), userPosts, viewModel, isCurrentUser);
+                userPostsRecyclerView.setAdapter(postAdapter);
+            }
+        }
     }
 
     private void loadUserPosts() {
@@ -65,41 +117,36 @@ public class UserPostsFragment extends Fragment implements ViewModel.OnNetworkCa
 
     @Override
     public void onSuccess() {
-        // Скрываем индикатор загрузки
         loadingIndicator.setVisibility(View.GONE);
 
-        if (viewModel != null && viewModel.getCurrentUser() != null) {
-            String currentUserLogin = viewModel.getCurrentUser().getUsername();
+        if (viewModel != null) {
             List<Post> allPosts = viewModel.getPosts();
 
             if (allPosts != null) {
-                // Фильтруем посты по логину текущего пользователя
                 List<Post> userPosts = allPosts.stream()
-                        .filter(post -> currentUserLogin.equals(post.getLogin()))
+                        .filter(post -> userLogin.equals(post.getLogin()))
                         .collect(Collectors.toList());
 
                 if (!userPosts.isEmpty()) {
-                    // Отображаем отфильтрованные посты
-                    postAdapter.setPosts(userPosts); // Используем метод setPosts
+                    postAdapter.setPosts(userPosts);
                     userPostsRecyclerView.setVisibility(View.VISIBLE);
                     noPostsMessage.setVisibility(View.GONE);
                 } else {
-                    // Показываем сообщение, если постов нет
                     userPostsRecyclerView.setVisibility(View.GONE);
                     noPostsMessage.setVisibility(View.VISIBLE);
-                    noPostsMessage.setText("У вас пока нет опубликованных постов.");
+                    noPostsMessage.setText("У пользователя пока нет опубликованных постов.");
                 }
             } else {
                 // Если список постов пуст или null
-                 userPostsRecyclerView.setVisibility(View.GONE);
-                 noPostsMessage.setVisibility(View.VISIBLE);
-                 noPostsMessage.setText("Ошибка загрузки постов или постов нет.");
+                userPostsRecyclerView.setVisibility(View.GONE);
+                noPostsMessage.setVisibility(View.VISIBLE);
+                noPostsMessage.setText("Ошибка загрузки постов или постов нет.");
             }
         } else {
-             // Если после загрузки пользователь оказался неавторизован (маловероятно)
-             userPostsRecyclerView.setVisibility(View.GONE);
-             noPostsMessage.setVisibility(View.VISIBLE);
-             noPostsMessage.setText("Пожалуйста, войдите в аккаунт для просмотра ваших постов.");
+            // Если ViewModel недоступен
+            userPostsRecyclerView.setVisibility(View.GONE);
+            noPostsMessage.setVisibility(View.VISIBLE);
+            noPostsMessage.setText("Ошибка загрузки данных.");
         }
     }
 
